@@ -1,0 +1,14 @@
+version: 1
+dependencies:
+  - package: spruceid/ssi
+    ecosystem: git
+    owner: ElevenID
+    upstream: https://github.com/spruceid/ssi
+    current: upstream-main-plus-security-patch
+    target: upstream-release
+    status: temporary-exception
+    decision: fork
+    advisories: [GHSA-7gcf-g7xr-8hxj]
+    tracking-issue: https://github.com/ElevenID/marty-core/issues/26
+    review-after: 2026-08-17
+    rationale: The latest ssi-jwt release retains an unused vulnerable serde_with dependency.
