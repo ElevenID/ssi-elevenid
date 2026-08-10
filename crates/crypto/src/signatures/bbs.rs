@@ -72,7 +72,7 @@ use pairing_plus::{
     serdes::SerDes,
     CurveProjective,
 };
-use rand_old::prelude::*;
+use rand::prelude::*;
 use serde::{
     de::{SeqAccess, Visitor},
     ser::SerializeTuple,

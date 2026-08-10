@@ -67,7 +67,7 @@ ssi-crypto.workspace = true
 k256 = { workspace = true, optional = true, features = ["ecdsa"] }
 p256 = { workspace = true, optional = true, features = ["ecdsa"] }
 p384 = { workspace = true, optional = true, features = ["ecdsa"] }
-ring = { version = "0.16", optional = true }
+ring = { version = "0.17.14", optional = true }
 rsa = { workspace = true, optional = true }
 rand = { workspace = true, optional = true }
 ed25519-dalek = { workspace = true, optional = true, features = ["rand_core"] }
