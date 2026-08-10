@@ -16,7 +16,7 @@ dependencies:
     ecosystem: rust
     owner: ElevenID
     upstream: https://github.com/hyperledger-archives/ursa
-    current: "ElevenID/ursa@6ee3bd253210549ad03f7011fd9fd0bb23fab536"
+    current: "ElevenID/ursa@558b233888acbc9679e5ccba0960a6bd6a1b50be"
     target: maintained-zkryptium-or-current-ssi-bbs-adapter
     status: mitigated-temporary-fork
     decision: fork
@@ -24,7 +24,7 @@ dependencies:
     resolved-advisories: [GHSA-cq8v-f236-94qc]
     tracking-issue: https://github.com/ElevenID/ssi-elevenid/issues/4
     review-after: 2026-09-09
-    rationale: ElevenID's temporary, history-preserving Ursa fork replaces rand 0.7 with rand_core 0.5 OS randomness while preserving the BBS API and native test behavior. The dependency is pinned to an immutable commit, reviewed monthly against archived upstream, and remains scheduled for replacement by a maintained implementation after interoperability testing.
+    rationale: ElevenID's temporary, history-preserving Ursa fork replaces rand 0.7 with rand_core 0.5 OS randomness and removes the unsound failure crate while preserving the BBS API and native test behavior. The dependency is pinned to an immutable commit, reviewed monthly against archived upstream, and remains scheduled for replacement by a maintained implementation after interoperability testing.
   - package: wiremock
     ecosystem: rust
     owner: ElevenID
