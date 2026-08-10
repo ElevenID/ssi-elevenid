@@ -6,7 +6,7 @@ dependencies:
     upstream: https://github.com/spruceid/ssi
     current: upstream-main-with-unused-dependency-removed
     target: resolved
-    status: resolved
+    status: maintained
     decision: remove
     advisories: [GHSA-7gcf-g7xr-8hxj]
     tracking-issue: https://github.com/ElevenID/marty-core/issues/26
@@ -18,7 +18,7 @@ dependencies:
     upstream: https://github.com/hyperledger-archives/ursa
     current: "ElevenID/ursa@558b233888acbc9679e5ccba0960a6bd6a1b50be"
     target: maintained-zkryptium-or-current-ssi-bbs-adapter
-    status: mitigated-temporary-fork
+    status: temporary-exception
     decision: fork
     advisories: []
     resolved-advisories: [GHSA-cq8v-f236-94qc]
@@ -31,7 +31,7 @@ dependencies:
     upstream: https://github.com/LukeMathWalker/wiremock-rs
     current: "0.6.5"
     target: current-supported-release
-    status: resolved
+    status: maintained
     decision: upgrade
     advisories: []
     resolved-advisories: [GHSA-cq8v-f236-94qc]
