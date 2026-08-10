@@ -491,7 +491,7 @@ pub fn sign_bytes(algorithm: Algorithm, data: &[u8], key: &JWK) -> Result<Vec<u8
                 Algorithm::PS256 => &ring::signature::RSA_PSS_SHA256,
                 _ => return Err(Error::AlgorithmNotImplemented(algorithm.to_string())),
             };
-            let mut sig = vec![0u8; key_pair.public_modulus_len()];
+            let mut sig = vec![0u8; key_pair.public().modulus_len()];
             let rng = ring::rand::SystemRandom::new();
             key_pair.sign(padding_alg, &rng, data, &mut sig)?;
             sig

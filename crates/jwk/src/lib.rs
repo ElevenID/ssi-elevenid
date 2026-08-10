@@ -286,14 +286,14 @@ impl JWK {
     pub fn generate_ed25519() -> Result<JWK, Error> {
         #[cfg(feature = "ring")]
         {
+            use ring::{rand::SecureRandom, signature::KeyPair};
+
             let rng = ring::rand::SystemRandom::new();
-            let mut key_pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng)?
-                .as_ref()
-                .to_vec();
-            // reference: ring/src/ec/curve25519/ed25519/signing.rs
-            let private_key = key_pkcs8[0x10..0x30].to_vec();
-            let public_key = key_pkcs8[0x35..0x55].to_vec();
-            key_pkcs8.zeroize();
+            let mut private_key = [0u8; 32];
+            rng.fill(&mut private_key)?;
+            let key_pair = ring::signature::Ed25519KeyPair::from_seed_unchecked(&private_key)?;
+            let public_key = key_pair.public_key().as_ref().to_vec();
+            let private_key = private_key.to_vec();
             Ok(JWK::from(Params::OKP(OctetParams {
                 curve: "Ed25519".to_string(),
                 public_key: Base64urlUInt(public_key),
