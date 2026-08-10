@@ -12,15 +12,29 @@ dependencies:
     tracking-issue: https://github.com/ElevenID/marty-core/issues/26
     review-after: 2026-08-17
     rationale: The unused ssi-jwt serde_with dependency was removed in ElevenID/ssi-elevenid#1. UCAN now uses the current serde_with 3 release, so no legacy serde_with version remains in the all-features graph.
-  - package: hyperledger/ursa-bbs
+  - package: ElevenID/ursa-bbs
     ecosystem: rust
     owner: ElevenID
-    upstream: https://github.com/hyperledger/ursa
-    current: "bbs-0.4.1/pairing-plus-0.19/rand-0.7"
+    upstream: https://github.com/hyperledger-archives/ursa
+    current: "ElevenID/ursa@6ee3bd253210549ad03f7011fd9fd0bb23fab536"
     target: maintained-zkryptium-or-current-ssi-bbs-adapter
-    status: temporary-exception
-    decision: replace
-    advisories: [GHSA-cq8v-f236-94qc]
+    status: mitigated-temporary-fork
+    decision: fork
+    advisories: []
+    resolved-advisories: [GHSA-cq8v-f236-94qc]
     tracking-issue: https://github.com/ElevenID/ssi-elevenid/issues/4
     review-after: 2026-09-09
-    rationale: The optional legacy BBS implementation transitively requires rand 0.7. The advisory is low severity and requires a custom logger interaction, but the path is obsolete. Preserve BBS/BLS behavior while replacing the implementation and its pairing types behind interoperability vectors; do not remove the feature merely to clear the alert.
+    rationale: ElevenID's temporary, history-preserving Ursa fork replaces rand 0.7 with rand_core 0.5 OS randomness while preserving the BBS API and native test behavior. The dependency is pinned to an immutable commit, reviewed monthly against archived upstream, and remains scheduled for replacement by a maintained implementation after interoperability testing.
+  - package: wiremock
+    ecosystem: rust
+    owner: ElevenID
+    upstream: https://github.com/LukeMathWalker/wiremock-rs
+    current: "0.6.5"
+    target: current-supported-release
+    status: resolved
+    decision: upgrade
+    advisories: []
+    resolved-advisories: [GHSA-cq8v-f236-94qc]
+    tracking-issue: https://github.com/ElevenID/ssi-elevenid/issues/4
+    review-after: 2026-09-09
+    rationale: The did:tz test suite moved from wiremock 0.5 to 0.6.5, removing its http-types to rand 0.7 development-only path. DID resolution and credential round-trip tests pass unchanged.
