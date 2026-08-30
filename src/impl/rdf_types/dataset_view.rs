@@ -1,4 +1,4 @@
-use std::{collections::HashSet, hash::Hash};
+use std::{cell::RefCell, collections::HashSet, hash::Hash};
 
 use crate::{
 	GraphVisitor, LinkedDataGraph, LinkedDataPredicateObjects, LinkedDataResource,
@@ -42,6 +42,8 @@ where
 				graph_subjects.push(subject);
 			}
 		}
+		let visited_subjects = RefCell::new(visited_subjects);
+		let visited_graphs = RefCell::new(visited_graphs);
 
 		for subject in graph_subjects {
 			visitor.subject(&Subject::new(
@@ -63,8 +65,8 @@ struct PredicateObjects<'d, 'v, D: Dataset> {
 	graph: Option<&'d D::Resource>,
 	subject: &'d D::Resource,
 	predicate: &'d D::Resource,
-	visited_subjects: &'v HashSet<&'d D::Resource>,
-	visited_graphs: &'v HashSet<&'d D::Resource>,
+	visited_subjects: &'v RefCell<HashSet<&'d D::Resource>>,
+	visited_graphs: &'v RefCell<HashSet<&'d D::Resource>>,
 }
 
 impl<'d, 'v, I: Interpretation, V: Vocabulary, D> LinkedDataPredicateObjects<I, V>
@@ -114,8 +116,8 @@ struct Object<'a, 'v, D: Dataset> {
 	dataset: &'a D,
 	graph: Option<&'a D::Resource>,
 	object: &'a D::Resource,
-	visited_subjects: &'v HashSet<&'a D::Resource>,
-	visited_graphs: &'v HashSet<&'a D::Resource>,
+	visited_subjects: &'v RefCell<HashSet<&'a D::Resource>>,
+	visited_graphs: &'v RefCell<HashSet<&'a D::Resource>>,
 }
 
 impl<'a, 'v, I: Interpretation, V: Vocabulary, D> LinkedDataSubject<I, V> for Object<'a, 'v, D>
@@ -130,20 +132,25 @@ where
 		S: SubjectVisitor<I, V>,
 	{
 		let subject = self.object;
+		let visit_predicates = self.visited_subjects.borrow_mut().insert(subject);
 
-		let mut visited_subjects = self.visited_subjects.clone();
-		let visit_predicates = visited_subjects.insert(subject);
-
-		Subject::new(
+		let result = Subject::new(
 			self.dataset,
 			self.graph,
 			subject,
-			&visited_subjects,
+			self.visited_subjects,
 			self.visited_graphs,
 			visit_predicates,
 		)
-		.visit(&mut visitor)?;
+		.visit(&mut visitor);
 
+		// Restore the path before propagating a visitor error.
+		if visit_predicates {
+			let removed = self.visited_subjects.borrow_mut().remove(subject);
+			debug_assert!(removed);
+		}
+
+		result?;
 		visitor.end()
 	}
 }
@@ -152,8 +159,8 @@ struct Subject<'a, 'v, D: Dataset> {
 	dataset: &'a D,
 	graph: Option<&'a D::Resource>,
 	subject: &'a D::Resource,
-	visited_subjects: &'v HashSet<&'a D::Resource>,
-	visited_graphs: &'v HashSet<&'a D::Resource>,
+	visited_subjects: &'v RefCell<HashSet<&'a D::Resource>>,
+	visited_graphs: &'v RefCell<HashSet<&'a D::Resource>>,
 	visit_predicates: bool,
 }
 
@@ -169,8 +176,8 @@ where
 		dataset: &'a D,
 		graph: Option<&'a D::Resource>,
 		subject: &'a D::Resource,
-		visited_subjects: &'v HashSet<&'a D::Resource>,
-		visited_graphs: &'v HashSet<&'a D::Resource>,
+		visited_subjects: &'v RefCell<HashSet<&'a D::Resource>>,
+		visited_graphs: &'v RefCell<HashSet<&'a D::Resource>>,
 		visit_predicates: bool,
 	) -> Self {
 		Self {
@@ -210,13 +217,17 @@ where
 			}
 
 			if self.dataset.contains_named_graph(self.subject) {
-				let mut visited_graphs = self.visited_graphs.clone();
-				if visited_graphs.insert(self.subject) {
-					visitor.graph(&NamedGraphView {
+				let visit_graph = self.visited_graphs.borrow_mut().insert(self.subject);
+				if visit_graph {
+					let result = visitor.graph(&NamedGraphView {
 						dataset: self.dataset,
 						graph: self.subject,
-						visited_graphs: &visited_graphs,
-					})?;
+						visited_graphs: self.visited_graphs,
+					});
+					// Restore the path before propagating a visitor error.
+					let removed = self.visited_graphs.borrow_mut().remove(self.subject);
+					debug_assert!(removed);
+					result?;
 				}
 			}
 		}
@@ -274,7 +285,7 @@ where
 struct NamedGraphView<'a, 'v, D: Dataset> {
 	dataset: &'a D,
 	graph: &'a D::Resource,
-	visited_graphs: &'v HashSet<&'a D::Resource>,
+	visited_graphs: &'v RefCell<HashSet<&'a D::Resource>>,
 }
 
 impl<'a, 'v, I: Interpretation, V: Vocabulary, D> LinkedDataResource<I, V>
@@ -320,6 +331,7 @@ where
 				graph_subjects.push(subject);
 			}
 		}
+		let visited_subjects = RefCell::new(visited_subjects);
 
 		for subject in graph_subjects {
 			visitor.subject(&Subject::new(

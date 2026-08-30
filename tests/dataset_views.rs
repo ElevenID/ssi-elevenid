@@ -119,6 +119,60 @@ fn dataset_view_terminates_named_graph_cycle_in_stable_order() {
 }
 
 #[test]
+fn dataset_graph_view_terminates_self_cycle_in_stable_order() {
+	const ROOT: &str = "https://example.com/root";
+	const SEED: &str = "https://example.com/seed";
+
+	let mut dataset = IndexedBTreeDataset::new();
+	// Seed `ROOT` so the indexed dataset reuses one resource slot when it is
+	// both the subject and object of the following quad.
+	dataset.insert(dataset_quad(SEED, EDGE, ROOT, None));
+	dataset.insert(dataset_quad(ROOT, EDGE, ROOT, None));
+
+	let root = resource(ROOT);
+	let view = DatasetGraphView {
+		dataset: &dataset,
+		graph: None,
+		resource: &root,
+	};
+	let subject_view = IdentifiedSubject(&root, view);
+	let (subject, quads) = to_lexical_subject_quads(generator::Blank::new(), None, &subject_view)
+		.expect("a subject self-cycle must terminate");
+
+	assert_eq!(subject, id(ROOT));
+	assert_eq!(quads, vec![lexical_quad(ROOT, EDGE, ROOT, None)]);
+}
+
+#[test]
+fn dataset_graph_view_terminates_two_subject_cycle_in_stable_postorder() {
+	const NODE_A: &str = "https://example.com/node-a";
+	const NODE_B: &str = "https://example.com/node-b";
+
+	let mut dataset = IndexedBTreeDataset::new();
+	dataset.insert(dataset_quad(NODE_A, EDGE, NODE_B, None));
+	dataset.insert(dataset_quad(NODE_B, EDGE, NODE_A, None));
+
+	let root = resource(NODE_A);
+	let view = DatasetGraphView {
+		dataset: &dataset,
+		graph: None,
+		resource: &root,
+	};
+	let subject_view = IdentifiedSubject(&root, view);
+	let (subject, quads) = to_lexical_subject_quads(generator::Blank::new(), None, &subject_view)
+		.expect("a two-subject cycle must terminate");
+
+	assert_eq!(subject, id(NODE_A));
+	assert_eq!(
+		quads,
+		vec![
+			lexical_quad(NODE_B, EDGE, NODE_A, None),
+			lexical_quad(NODE_A, EDGE, NODE_B, None),
+		]
+	);
+}
+
+#[test]
 fn dataset_graph_view_revisits_shared_subject_per_path_in_stable_order() {
 	const ROOT: &str = "https://example.com/root";
 	const LEFT: &str = "https://example.com/left";
@@ -161,32 +215,41 @@ fn dataset_graph_view_revisits_shared_subject_per_path_in_stable_order() {
 
 #[test]
 fn dataset_graph_view_preserves_deep_postorder_traversal() {
-	const DEPTH: usize = 256;
+	const DEPTH: usize = 2_048;
+	const STACK_SIZE: usize = 16 * 1024 * 1024;
 
-	fn node(index: usize) -> String {
-		format!("https://example.com/node/{index:04}")
-	}
+	std::thread::Builder::new()
+		.name("deep-dataset-graph-view".into())
+		.stack_size(STACK_SIZE)
+		.spawn(|| {
+			fn node(index: usize) -> String {
+				format!("https://example.com/node/{index:04}")
+			}
 
-	let mut dataset = IndexedBTreeDataset::new();
-	for index in 0..DEPTH {
-		dataset.insert(dataset_quad(&node(index), EDGE, &node(index + 1), None));
-	}
+			let mut dataset = IndexedBTreeDataset::new();
+			for index in 0..DEPTH {
+				dataset.insert(dataset_quad(&node(index), EDGE, &node(index + 1), None));
+			}
 
-	let root = resource(node(0));
-	let view = DatasetGraphView {
-		dataset: &dataset,
-		graph: None,
-		resource: &root,
-	};
-	let subject_view = IdentifiedSubject(&root, view);
-	let (_, quads) = to_lexical_subject_quads(generator::Blank::new(), None, &subject_view)
-		.expect("deep acyclic traversal must succeed");
-	let expected: Vec<_> = (0..DEPTH)
-		.rev()
-		.map(|index| lexical_quad(&node(index), EDGE, &node(index + 1), None))
-		.collect();
+			let root = resource(node(0));
+			let view = DatasetGraphView {
+				dataset: &dataset,
+				graph: None,
+				resource: &root,
+			};
+			let subject_view = IdentifiedSubject(&root, view);
+			let (_, quads) = to_lexical_subject_quads(generator::Blank::new(), None, &subject_view)
+				.expect("deep acyclic traversal must succeed");
+			let expected: Vec<_> = (0..DEPTH)
+				.rev()
+				.map(|index| lexical_quad(&node(index), EDGE, &node(index + 1), None))
+				.collect();
 
-	assert_eq!(quads, expected);
+			assert_eq!(quads, expected);
+		})
+		.expect("deep traversal test thread must start")
+		.join()
+		.expect("deep traversal test thread must not panic");
 }
 
 #[test]
