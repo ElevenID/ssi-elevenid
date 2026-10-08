@@ -100,24 +100,28 @@ impl SignatureTest {
 
         let expected = serde_json::to_value(&self.expected_output).unwrap();
         let proof_value = expected["proof"]["proofValue"].as_str().unwrap();
-        let (signature, mut proof_scoped) = match self.proof_scoped_message_sha256 {
-            Some(message_sha256) => {
-                let proof: ssi_data_integrity::suites::ecdsa_sd_2023::Signature =
-                    serde_json::from_value(expected["proof"].clone()).unwrap();
-                let decoded = proof.decode_base().unwrap();
-                (
-                    decoded.base_signature,
-                    Some(ProofScopedVector {
-                        signatures: ProofScopedP256Signatures {
-                            public_key_sec1: decoded.public_key.data().to_vec(),
-                            signatures: decoded.signatures,
-                        },
-                        message_sha256,
-                    }),
-                )
-            }
-            None => (multibase::decode(proof_value).unwrap().1, None),
-        };
+        let (signature, mut proof_scoped): (Vec<u8>, Option<ProofScopedVector>) =
+            match self.proof_scoped_message_sha256 {
+                #[cfg(all(feature = "w3c", feature = "secp256r1"))]
+                Some(message_sha256) => {
+                    let proof: ssi_data_integrity::suites::ecdsa_sd_2023::Signature =
+                        serde_json::from_value(expected["proof"].clone()).unwrap();
+                    let decoded = proof.decode_base().unwrap();
+                    (
+                        decoded.base_signature,
+                        Some(ProofScopedVector {
+                            signatures: ProofScopedP256Signatures {
+                                public_key_sec1: decoded.public_key.data().to_vec(),
+                                signatures: decoded.signatures,
+                            },
+                            message_sha256,
+                        }),
+                    )
+                }
+                #[cfg(not(all(feature = "w3c", feature = "secp256r1")))]
+                Some(_) => panic!("proof-scoped P-256 fixture requires the ecdsa-sd-2023 suite"),
+                None => (multibase::decode(proof_value).unwrap().1, None),
+            };
         if tamper {
             let signature = &mut proof_scoped
                 .as_mut()

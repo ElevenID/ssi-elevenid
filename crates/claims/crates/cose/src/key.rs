@@ -250,25 +250,13 @@ impl CoseKeyEncode for CoseKey {
 #[cfg(test)]
 mod tests {
     use super::{CoseKeyDecode, CoseKeyEncode, KeyDecodingError, EC2_D, OKP_D};
+    use crate::test_vectors::{signed_cases, supports_case};
     use coset::{CborSerializable, CoseKey, KeyType};
-    use serde::Deserialize;
-
-    #[derive(Deserialize)]
-    struct SignedCase {
-        name: String,
-        public_hex: String,
-    }
 
     #[test]
     fn public_keys_roundtrip_without_private_material() {
-        let cases: Vec<SignedCase> =
-            serde_json::from_str(include_str!("../tests/fixtures/signed-cases.json")).unwrap();
-        for case in cases {
+        for case in signed_cases() {
             let key = CoseKey::from_slice(&hex::decode(case.public_hex).unwrap()).unwrap();
-            let public = key.decode_public().unwrap();
-            let encoded = CoseKey::encode_public_with_id(&public, key.key_id.clone()).unwrap();
-            assert_eq!(encoded, key, "{}", case.name);
-
             let mut with_private_parameter = key.clone();
             let d = match key.kty {
                 KeyType::Assigned(coset::iana::KeyType::OKP) => OKP_D,
@@ -286,6 +274,21 @@ mod tests {
                 "{}",
                 case.name
             );
+
+            if supports_case(&case.name) {
+                let public = key.decode_public().unwrap();
+                let encoded = CoseKey::encode_public_with_id(&public, key.key_id.clone()).unwrap();
+                assert_eq!(encoded, key, "{}", case.name);
+            } else {
+                assert!(
+                    matches!(
+                        key.decode_public(),
+                        Err(KeyDecodingError::UnsupportedParam(..))
+                    ),
+                    "{}",
+                    case.name
+                );
+            }
         }
     }
 }

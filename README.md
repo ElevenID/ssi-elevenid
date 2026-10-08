@@ -106,15 +106,19 @@ assert!(vc.verify(&params).await.expect("verification failed").is_ok());
 
 ### Signing with a remote key
 
-Issuance uses a provider implementing `Signer` and `MessageSigner`. The
-provider maps a public verification method to a remote key reference and asks
-the KMS to sign the prepared bytes. Private key material stays in the KMS.
-Applications must supply this provider; this fork does not generate or load
-local signing keys. Public signed VC and JWT fixtures remain in
-`examples/files` for the verification examples.
-## Data-Models
+Issuance uses a provider implementing [`Signer`] and [`MessageSigner`].
+The provider resolves a public verification method to a remote key reference
+and asks the KMS to sign the prepared bytes. Private key material stays in
+the KMS. Applications must supply this provider; this crate does not create
+or load a local signing key. Public signed VC and JWT fixtures remain in
+`examples/files` for verification examples.
 
-The examples above are using the VC data-model 1.1, but you ssi also has support for:
+[`Signer`]: ssi_verification_methods::Signer
+[`MessageSigner`]: ssi_verification_methods::MessageSigner
+
+## Data Models
+
+The examples above use VC data model 1.1. SSI also supports:
 - [`VC data-model 2.0`]
 - [`A wrapper type to accept both`]
 

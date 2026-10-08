@@ -188,12 +188,11 @@ pub enum ToMulticodecError {
     InvalidInputKey(Error),
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "secp256r1"))]
 mod tests {
     use super::*;
 
     #[test]
-    #[cfg(feature = "secp256r1")]
     fn test_multicodec_jwk_jcs_pub() {
         let jwk: JWK =
             JWK::try_from(include_bytes!("../../../tests/jwk_jcs-pub.json").as_slice()).unwrap();

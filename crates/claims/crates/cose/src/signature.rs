@@ -93,24 +93,14 @@ impl<T: CoseSigner> CoseSigner for &T {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_vectors::{signed_cases, supports_case};
     use crate::{CoseSign1BytesBuf, DecodedCoseSign1};
     use coset::{CborSerializable, CoseKey};
-    use serde::Deserialize;
     use ssi_claims_core::VerificationParameters;
-
-    #[derive(Deserialize)]
-    struct SignedCase {
-        name: String,
-        tagged: bool,
-        public_hex: String,
-        signed_hex: String,
-    }
 
     #[async_std::test]
     async fn signed_vectors_verify_and_tampering_fails() {
-        let cases: Vec<SignedCase> =
-            serde_json::from_str(include_str!("../tests/fixtures/signed-cases.json")).unwrap();
-        for case in cases {
+        for case in signed_cases() {
             let key = CoseKey::from_slice(&hex::decode(&case.public_hex).unwrap()).unwrap();
             let bytes = CoseSign1BytesBuf::new(hex::decode(&case.signed_hex).unwrap());
             let decoded: DecodedCoseSign1 = bytes.decode(case.tagged).unwrap();
@@ -120,6 +110,17 @@ mod tests {
                 "{}",
                 case.name
             );
+            if !supports_case(&case.name) {
+                assert!(
+                    decoded
+                        .verify(VerificationParameters::from_resolver(&key))
+                        .await
+                        .is_err(),
+                    "{}",
+                    case.name
+                );
+                continue;
+            }
             assert_eq!(
                 decoded
                     .verify(VerificationParameters::from_resolver(&key))

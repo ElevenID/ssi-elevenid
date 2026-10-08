@@ -45,6 +45,7 @@
 //!
 //! ```
 //! # use ssi_dids::example::ExampleDIDResolver;
+//! # #[cfg(feature = "rsa")]
 //! # #[async_std::main]
 //! # async fn main() {
 //! use ssi::prelude::*;
@@ -67,6 +68,8 @@
 //! // Verify the JWT.
 //! assert!(jwt.verify(&params).await.expect("verification failed").is_ok())
 //! # }
+//! # #[cfg(not(feature = "rsa"))]
+//! # fn main() {}
 //! ```
 //!
 //! ### Verifiable Credentials
@@ -83,6 +86,7 @@
 //!
 //! ```
 //! # use ssi_dids::example::ExampleDIDResolver;
+//! # #[cfg(all(feature = "rsa", feature = "w3c"))]
 //! # fn main() {
 //! # std::thread::Builder::new().stack_size(16 * 1024 * 1024).spawn(|| async_std::task::block_on(async {
 //! use ssi::prelude::*;
@@ -102,6 +106,8 @@
 //! assert!(vc.verify(&params).await.expect("verification failed").is_ok());
 //! # })).unwrap().join().unwrap();
 //! # }
+//! # #[cfg(not(all(feature = "rsa", feature = "w3c")))]
+//! # fn main() {}
 //! ```
 //!
 //! ## Signing with a remote key
@@ -115,9 +121,10 @@
 //!
 //! [`Signer`]: ssi_verification_methods::Signer
 //! [`MessageSigner`]: ssi_verification_methods::MessageSigner
-//!//! # Data-Models
 //!
-//! The examples above are using the VC data-model 1.1, but you ssi also has support for:
+//! # Data Models
+//!
+//! The examples above use VC data model 1.1. SSI also supports:
 //! - [`VC data-model 2.0`]
 //! - [`A wrapper type to accept both`]
 //!

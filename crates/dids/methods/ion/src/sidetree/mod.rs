@@ -279,7 +279,8 @@ pub trait Sidetree {
     /// [commitments][].
     ///
     /// Sidetree specifies in ([Ã‚Â§11.1 Create][create]) that creating a Sidetree DID involves
-    /// generating a Update keypair and Recovery keypair. That is implemented in [Self::create].
+    /// generating an Update keypair and Recovery keypair. This method accepts
+    /// their public keys from an external key manager.
     ///
     /// **Note**: The Sidetree specification ([Ã‚Â§6.2.1 Public Key Commitment
     /// Scheme][pkcs]) recommends not reusing public keys across different commitment invocations, and

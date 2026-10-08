@@ -9,6 +9,7 @@
 //! This example uses a signed COSE object and its public key.
 //!
 //! ```
+//! # #[cfg(feature = "secp256r1")]
 //! # #[async_std::main]
 //! # async fn main() {
 //! use ssi_claims_core::VerificationParameters;
@@ -21,6 +22,8 @@
 //! assert_eq!(decoded.signing_bytes.payload.as_bytes(), b"PAYLOAD");
 //! assert_eq!(decoded.verify(VerificationParameters::from_resolver(&key)).await.unwrap(), Ok(()));
 //! # }
+//! # #[cfg(not(feature = "secp256r1"))]
+//! # fn main() {}
 //! ```
 use ssi_claims_core::SignatureError;
 use std::borrow::Cow;
@@ -40,6 +43,33 @@ mod verification;
 pub use verification::*;
 
 pub mod algorithm;
+
+#[cfg(test)]
+mod test_vectors {
+    use serde::Deserialize;
+
+    #[derive(Deserialize)]
+    pub(super) struct SignedCase {
+        pub name: String,
+        pub tagged: bool,
+        pub public_hex: String,
+        pub signed_hex: String,
+    }
+
+    pub(super) fn signed_cases() -> Vec<SignedCase> {
+        serde_json::from_str(include_str!("../tests/fixtures/signed-cases.json")).unwrap()
+    }
+
+    pub(super) fn supports_case(name: &str) -> bool {
+        match name.split('-').next().unwrap() {
+            "ed25519" => cfg!(feature = "ed25519"),
+            "secp256k1" => cfg!(feature = "secp256k1"),
+            "p256" => cfg!(feature = "secp256r1"),
+            "p384" => cfg!(feature = "secp384r1"),
+            _ => panic!("unknown COSE fixture: {name}"),
+        }
+    }
+}
 
 mod sign1;
 pub use sign1::*;

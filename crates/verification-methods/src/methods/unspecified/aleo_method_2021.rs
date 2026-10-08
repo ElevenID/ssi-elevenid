@@ -23,8 +23,8 @@ pub const ALEO_METHOD_2021_TYPE: &str = "AleoMethod2021";
 /// The verification method object must have a `blockchainAccountId` property, identifying the
 /// signer's Aleo
 /// account address and network id for verification purposes. The chain id part of the account address
-/// identifies an Aleo network as specified in the proposed [CAIP for Aleo Blockchain
-/// Reference][caip-aleo-chain-ref]. Signatures use parameters defined per network. Currently only
+/// identifies an Aleo network using a CAIP-2 chain reference. Signatures use
+/// parameters defined per network. Currently only
 /// network id "1" (CAIP-2 "aleo:1" / testnet1) is supported. The account
 /// address format is documented in [Aleo
 /// documentation](https://developer.aleo.org/aleo/concepts/accounts#account-address).
