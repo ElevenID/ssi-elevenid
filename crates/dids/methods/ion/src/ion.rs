@@ -6,10 +6,6 @@ use crate::sidetree::Sidetree;
 pub struct ION;
 
 impl Sidetree for ION {
-    fn generate_key() -> JWK {
-        JWK::generate_secp256k1()
-    }
-
     fn validate_key(key: &JWK) -> bool {
         is_secp256k1(key)
     }

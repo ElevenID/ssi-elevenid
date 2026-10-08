@@ -42,10 +42,7 @@ pub use multicodec::*;
 
 pub mod der;
 
-use der::{
-    BitString, Ed25519PrivateKey, Ed25519PublicKey, Integer, OctetString, RSAPrivateKey,
-    RSAPublicKey, RSAPublicKeyFromASN1Error,
-};
+use der::{BitString, Ed25519PublicKey, Integer, RSAPublicKey, RSAPublicKeyFromASN1Error};
 
 use serde::{Deserialize, Serialize};
 
@@ -56,17 +53,6 @@ use serde::{Deserialize, Serialize};
 // RFC 8037 - CFRG ECDH and Signatures in JOSE
 // RFC 8812 - CBOR Object Signing and Encryption (COSE) and JSON Object Signing and Encryption
 //  (JOSE) Registrations for Web Authentication (WebAuthn) Algorithms
-
-/// Deprecated
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct JWTKeys {
-    #[serde(rename = "es256kPrivateKeyJwk")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub es256k_private_key: Option<JWK>,
-    #[serde(rename = "rs256PrivateKeyJwk")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub rs256_private_key: Option<JWK>,
-}
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Hash, Eq)]
 pub struct JWK {
@@ -124,7 +110,10 @@ impl TryFrom<serde_json::Value> for JWK {
 
 impl fmt::Display for JWK {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        serde_jcs::to_string(self).unwrap().fmt(f)
+        match serde_jcs::to_string(self) {
+            Ok(public) => public.fmt(f),
+            Err(_) => f.write_str("[private JWK prohibited]"),
+        }
     }
 }
 
@@ -140,59 +129,28 @@ pub enum Params {
     OKP(OctetParams),
 }
 
-impl Drop for ECParams {
-    fn drop(&mut self) {
-        // Zeroize private key
-        if let Some(ref mut d) = self.ecc_private_key {
-            d.zeroize();
-        }
-    }
+fn reject_private_jwk_parameter<'de, D, T>(_deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Err(serde::de::Error::custom(
+        "private or symmetric JWK parameters are not accepted",
+    ))
 }
 
-impl Drop for RSAParams {
-    fn drop(&mut self) {
-        // Zeroize private key fields
-        if let Some(ref mut d) = self.private_exponent {
-            d.zeroize();
-        }
-        if let Some(ref mut p) = self.first_prime_factor {
-            p.zeroize();
-        }
-        if let Some(ref mut q) = self.second_prime_factor {
-            q.zeroize();
-        }
-        if let Some(ref mut dp) = self.first_prime_factor_crt_exponent {
-            dp.zeroize();
-        }
-        if let Some(ref mut dq) = self.second_prime_factor_crt_exponent {
-            dq.zeroize();
-        }
-        if let Some(ref mut qi) = self.first_crt_coefficient {
-            qi.zeroize();
-        }
-        if let Some(ref mut primes) = self.other_primes_info {
-            for prime in primes {
-                prime.zeroize();
-            }
-        }
-    }
-}
-
-impl Drop for SymmetricParams {
-    fn drop(&mut self) {
-        // Zeroize private/symmetric key
-        if let Some(ref mut k) = self.key_value {
-            k.zeroize();
-        }
-    }
-}
-
-impl Drop for OctetParams {
-    fn drop(&mut self) {
-        // Zeroize private key
-        if let Some(ref mut d) = self.private_key {
-            d.zeroize();
-        }
+fn reject_private_jwk_serialization<S, T>(
+    value: &Option<T>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    if value.is_some() {
+        Err(serde::ser::Error::custom(
+            "private or symmetric JWK parameters cannot be serialized",
+        ))
+    } else {
+        serializer.serialize_none()
     }
 }
 
@@ -206,10 +164,15 @@ pub struct ECParams {
     #[serde(rename = "y")]
     pub y_coordinate: Option<Base64urlUInt>,
 
-    // Parameters for Elliptic Curve Private Keys
+    // Presence marker for a forbidden private parameter; no key bytes fit here.
     #[serde(rename = "d")]
+    #[serde(
+        default,
+        deserialize_with = "reject_private_jwk_parameter",
+        serialize_with = "reject_private_jwk_serialization"
+    )]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub ecc_private_key: Option<Base64urlUInt>,
+    pub ecc_private_key: Option<()>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default, Hash, Eq, Zeroize)]
@@ -220,35 +183,75 @@ pub struct RSAParams {
     #[serde(rename = "e")]
     pub exponent: Option<Base64urlUInt>,
 
-    // Parameters for RSA Private Keys
+    // Presence markers preserve rejection checks without holding key bytes.
     #[serde(rename = "d")]
+    #[serde(
+        default,
+        deserialize_with = "reject_private_jwk_parameter",
+        serialize_with = "reject_private_jwk_serialization"
+    )]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub private_exponent: Option<Base64urlUInt>,
+    pub private_exponent: Option<()>,
     #[serde(rename = "p")]
+    #[serde(
+        default,
+        deserialize_with = "reject_private_jwk_parameter",
+        serialize_with = "reject_private_jwk_serialization"
+    )]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub first_prime_factor: Option<Base64urlUInt>,
+    pub first_prime_factor: Option<()>,
     #[serde(rename = "q")]
+    #[serde(
+        default,
+        deserialize_with = "reject_private_jwk_parameter",
+        serialize_with = "reject_private_jwk_serialization"
+    )]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub second_prime_factor: Option<Base64urlUInt>,
+    pub second_prime_factor: Option<()>,
     #[serde(rename = "dp")]
+    #[serde(
+        default,
+        deserialize_with = "reject_private_jwk_parameter",
+        serialize_with = "reject_private_jwk_serialization"
+    )]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub first_prime_factor_crt_exponent: Option<Base64urlUInt>,
+    pub first_prime_factor_crt_exponent: Option<()>,
     #[serde(rename = "dq")]
+    #[serde(
+        default,
+        deserialize_with = "reject_private_jwk_parameter",
+        serialize_with = "reject_private_jwk_serialization"
+    )]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub second_prime_factor_crt_exponent: Option<Base64urlUInt>,
+    pub second_prime_factor_crt_exponent: Option<()>,
     #[serde(rename = "qi")]
+    #[serde(
+        default,
+        deserialize_with = "reject_private_jwk_parameter",
+        serialize_with = "reject_private_jwk_serialization"
+    )]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub first_crt_coefficient: Option<Base64urlUInt>,
+    pub first_crt_coefficient: Option<()>,
     #[serde(rename = "oth")]
+    #[serde(
+        default,
+        deserialize_with = "reject_private_jwk_parameter",
+        serialize_with = "reject_private_jwk_serialization"
+    )]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub other_primes_info: Option<Vec<Prime>>,
+    pub other_primes_info: Option<()>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Hash, Eq, Zeroize)]
 pub struct SymmetricParams {
-    // Parameters for Symmetric Keys
+    // Presence marker for a forbidden symmetric key; no key bytes fit here.
     #[serde(rename = "k")]
-    pub key_value: Option<Base64urlUInt>,
+    #[serde(
+        default,
+        deserialize_with = "reject_private_jwk_parameter",
+        serialize_with = "reject_private_jwk_serialization"
+    )]
+    pub key_value: Option<()>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Hash, Eq, Zeroize)]
@@ -259,20 +262,15 @@ pub struct OctetParams {
     #[serde(rename = "x")]
     pub public_key: Base64urlUInt,
 
-    // Parameters for Octet Key Pair Private Keys
+    // Presence marker for a forbidden private parameter; no key bytes fit here.
     #[serde(rename = "d")]
+    #[serde(
+        default,
+        deserialize_with = "reject_private_jwk_parameter",
+        serialize_with = "reject_private_jwk_serialization"
+    )]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub private_key: Option<Base64urlUInt>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Hash, Eq, Zeroize)]
-pub struct Prime {
-    #[serde(rename = "r")]
-    pub prime_factor: Base64urlUInt,
-    #[serde(rename = "d")]
-    pub factor_crt_exponent: Base64urlUInt,
-    #[serde(rename = "t")]
-    pub factor_crt_coefficient: Base64urlUInt,
+    pub private_key: Option<()>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Hash, Eq, Zeroize)]
@@ -282,98 +280,6 @@ pub struct Base64urlUInt(pub Vec<u8>);
 type Base64urlUIntString = String;
 
 impl JWK {
-    #[cfg(feature = "ed25519")]
-    pub fn generate_ed25519() -> Result<JWK, Error> {
-        #[cfg(feature = "ring")]
-        {
-            use ring::{rand::SecureRandom, signature::KeyPair};
-
-            let rng = ring::rand::SystemRandom::new();
-            let mut private_key = [0u8; 32];
-            rng.fill(&mut private_key)?;
-            let key_pair = ring::signature::Ed25519KeyPair::from_seed_unchecked(&private_key)?;
-            let public_key = key_pair.public_key().as_ref().to_vec();
-            let private_key = private_key.to_vec();
-            Ok(JWK::from(Params::OKP(OctetParams {
-                curve: "Ed25519".to_string(),
-                public_key: Base64urlUInt(public_key),
-                private_key: Some(Base64urlUInt(private_key)),
-            })))
-        }
-        #[cfg(not(feature = "ring"))]
-        {
-            let mut csprng = rand::rngs::OsRng {};
-            let secret = ed25519_dalek::SigningKey::generate(&mut csprng);
-            let public = secret.verifying_key();
-            Ok(JWK::from(Params::OKP(OctetParams {
-                curve: "Ed25519".to_string(),
-                public_key: Base64urlUInt(public.as_ref().to_vec()),
-                private_key: Some(Base64urlUInt(secret.to_bytes().to_vec())),
-            })))
-        }
-    }
-
-    #[cfg(feature = "ed25519")]
-    pub fn generate_ed25519_from(
-        rng: &mut (impl rand::CryptoRng + rand::RngCore),
-    ) -> Result<JWK, Error> {
-        let secret = ed25519_dalek::SigningKey::generate(rng);
-        let public = secret.verifying_key();
-        Ok(JWK::from(Params::OKP(OctetParams {
-            curve: "Ed25519".to_string(),
-            public_key: Base64urlUInt(public.as_ref().to_vec()),
-            private_key: Some(Base64urlUInt(secret.to_bytes().to_vec())),
-        })))
-    }
-
-    #[cfg(feature = "secp256k1")]
-    pub fn generate_secp256k1() -> JWK {
-        let mut rng = rand::rngs::OsRng {};
-        Self::generate_secp256k1_from(&mut rng)
-    }
-
-    #[cfg(feature = "secp256k1")]
-    pub fn generate_secp256k1_from(rng: &mut (impl rand::CryptoRng + rand::RngCore)) -> JWK {
-        let secret_key = k256::SecretKey::random(rng);
-        let sk_bytes = zeroize::Zeroizing::new(secret_key.to_bytes().to_vec());
-        let public_key = secret_key.public_key();
-        let mut ec_params = ECParams::from(&public_key);
-        ec_params.ecc_private_key = Some(Base64urlUInt(sk_bytes.to_vec()));
-        JWK::from(Params::EC(ec_params))
-    }
-
-    #[cfg(feature = "secp256r1")]
-    pub fn generate_p256() -> JWK {
-        let mut rng = rand::rngs::OsRng {};
-        Self::generate_p256_from(&mut rng)
-    }
-
-    #[cfg(feature = "secp256r1")]
-    pub fn generate_p256_from(rng: &mut (impl rand::CryptoRng + rand::RngCore)) -> JWK {
-        let secret_key = p256::SecretKey::random(rng);
-        let sk_bytes = zeroize::Zeroizing::new(secret_key.to_bytes().to_vec());
-        let public_key: p256::PublicKey = secret_key.public_key();
-        let mut ec_params = ECParams::from(&public_key);
-        ec_params.ecc_private_key = Some(Base64urlUInt(sk_bytes.to_vec()));
-        JWK::from(Params::EC(ec_params))
-    }
-
-    #[cfg(feature = "secp384r1")]
-    pub fn generate_p384() -> JWK {
-        let mut rng = rand::rngs::OsRng {};
-        let secret_key = p384::SecretKey::random(&mut rng);
-        let sk_bytes = zeroize::Zeroizing::new(secret_key.to_bytes().to_vec());
-        let public_key: p384::PublicKey = secret_key.public_key();
-        let mut ec_params = ECParams::from(&public_key);
-        ec_params.ecc_private_key = Some(Base64urlUInt(sk_bytes.to_vec()));
-        JWK::from(Params::EC(ec_params))
-    }
-
-    #[cfg(feature = "aleo")]
-    pub fn generate_aleo() -> Result<JWK, Error> {
-        crate::aleo::generate_private_key_jwk().map_err(Error::AleoGeneratePrivateKey)
-    }
-
     pub fn get_algorithm(&self) -> Option<Algorithm> {
         if let Some(algorithm) = self.algorithm {
             return Some(algorithm);
@@ -390,10 +296,7 @@ impl JWK {
                 return Some(Algorithm::AleoTestnet1Signature);
             }
             Params::EC(ec_params) => {
-                let curve = match &ec_params.curve {
-                    Some(curve) => curve,
-                    None => return None,
-                };
+                let curve = ec_params.curve.as_ref()?;
                 match &curve[..] {
                     "secp256k1" => {
                         return Some(Algorithm::ES256K);
@@ -457,14 +360,6 @@ impl JWK {
                     ..
                 }),
             ) => crv1 == crv2 && x1 == x2 && y1 == y2,
-            (
-                Params::Symmetric(SymmetricParams {
-                    key_value: Some(kv1),
-                }),
-                Params::Symmetric(SymmetricParams {
-                    key_value: Some(kv2),
-                }),
-            ) => kv1 == kv2,
             _ => false,
         }
     }
@@ -501,13 +396,7 @@ impl JWK {
                     String::from(y)
                 )
             }
-            Params::Symmetric(sym_params) => {
-                let k = sym_params
-                    .key_value
-                    .as_ref()
-                    .ok_or(Error::MissingKeyValue)?;
-                format!(r#"{{"k":"{}","kty":"oct"}}"#, String::from(k))
-            }
+            Params::Symmetric(_) => return Err(Error::LocalKeyOperationsDisabled),
         };
         let hash = ssi_crypto::hashes::sha256::sha256(json_string.as_bytes());
         let thumbprint = String::from(Base64urlUInt(hash.to_vec()));
@@ -643,47 +532,20 @@ impl ToASN1 for RSAParams {
             Some(integer) => Integer(BigInt::from_bytes_be(Sign::Plus, &integer.0)),
             None => return Err(Error::MissingExponent),
         };
-        if let Some(ref private_exponent) = self.private_exponent {
-            let key = RSAPrivateKey {
-                modulus,
-                public_exponent,
-                private_exponent: Integer(BigInt::from_bytes_be(Sign::Plus, &private_exponent.0)),
-                prime1: match &self.first_prime_factor {
-                    Some(integer) => Integer(BigInt::from_bytes_be(Sign::Plus, &integer.0)),
-                    None => Integer(BigInt::new(Sign::NoSign, vec![])),
-                },
-                prime2: match &self.second_prime_factor {
-                    Some(integer) => Integer(BigInt::from_bytes_be(Sign::Plus, &integer.0)),
-                    None => Integer(BigInt::new(Sign::NoSign, vec![])),
-                },
-                exponent1: match &self.first_prime_factor_crt_exponent {
-                    Some(integer) => Integer(BigInt::from_bytes_be(Sign::Plus, &integer.0)),
-                    None => Integer(BigInt::new(Sign::NoSign, vec![])),
-                },
-                exponent2: match &self.second_prime_factor_crt_exponent {
-                    Some(integer) => Integer(BigInt::from_bytes_be(Sign::Plus, &integer.0)),
-                    None => Integer(BigInt::new(Sign::NoSign, vec![])),
-                },
-                coefficient: match &self.first_crt_coefficient {
-                    Some(integer) => Integer(BigInt::from_bytes_be(Sign::Plus, &integer.0)),
-                    None => Integer(BigInt::new(Sign::NoSign, vec![0])),
-                },
-                other_prime_infos: None,
-            };
-            Ok(key.to_asn1_class(class)?)
-        } else {
-            let key = RSAPublicKey {
-                modulus,
-                public_exponent,
-            };
-            Ok(key.to_asn1_class(class)?)
+        if self.private_exponent.is_some() {
+            return Err(Error::LocalKeyOperationsDisabled);
         }
+        let key = RSAPublicKey {
+            modulus,
+            public_exponent,
+        };
+        Ok(key.to_asn1_class(class)?)
     }
 }
 
 impl SymmetricParams {
     pub fn is_public(&self) -> bool {
-        self.key_value.is_none()
+        false
     }
 
     /// Strip private key material
@@ -714,20 +576,11 @@ impl ToASN1 for OctetParams {
             return Err(Error::CurveNotImplemented(self.curve.to_string()));
         }
         let public_key = BitString(self.public_key.0.clone());
-        if let Some(private_key) = self
-            .private_key
-            .as_ref()
-            .map(|private_key| OctetString(private_key.0.clone()))
-        {
-            let key = Ed25519PrivateKey {
-                public_key,
-                private_key,
-            };
-            Ok(key.to_asn1_class(class)?)
-        } else {
-            let key = Ed25519PublicKey { public_key };
-            Ok(key.to_asn1_class(class)?)
+        if self.private_key.is_some() {
+            return Err(Error::LocalKeyOperationsDisabled);
         }
+        let key = Ed25519PublicKey { public_key };
+        Ok(key.to_asn1_class(class)?)
     }
 }
 
@@ -745,33 +598,6 @@ impl TryFrom<&RSAParams> for rsa::RsaPublicKey {
         let n = params.modulus.as_ref().ok_or(Error::MissingModulus)?;
         let e = params.exponent.as_ref().ok_or(Error::MissingExponent)?;
         Ok(Self::new(n.into(), e.into())?)
-    }
-}
-
-#[cfg(feature = "rsa")]
-impl TryFrom<&RSAParams> for rsa::RsaPrivateKey {
-    type Error = Error;
-    #[allow(clippy::many_single_char_names)]
-    fn try_from(params: &RSAParams) -> Result<Self, Self::Error> {
-        let n = params.modulus.as_ref().ok_or(Error::MissingModulus)?;
-        let e = params.exponent.as_ref().ok_or(Error::MissingExponent)?;
-        let d = params
-            .private_exponent
-            .as_ref()
-            .ok_or(Error::MissingExponent)?;
-        let p = params
-            .first_prime_factor
-            .as_ref()
-            .ok_or(Error::MissingPrime)?;
-        let q = params
-            .second_prime_factor
-            .as_ref()
-            .ok_or(Error::MissingPrime)?;
-        let mut primes = vec![p.into(), q.into()];
-        for prime in params.other_primes_info.iter().flatten() {
-            primes.push((&prime.prime_factor).into());
-        }
-        Ok(Self::from_components(n.into(), e.into(), d.into(), primes))
     }
 }
 
@@ -793,16 +619,6 @@ impl<'a> TryFrom<&'a RSAParams> for ring::signature::RsaPublicKeyComponents<&'a 
     }
 }
 
-#[cfg(feature = "ring")]
-impl TryFrom<&RSAParams> for ring::signature::RsaKeyPair {
-    type Error = Error;
-    fn try_from(params: &RSAParams) -> Result<Self, Self::Error> {
-        let der = simple_asn1::der_encode(params)?;
-        let keypair = Self::from_der(&der)?;
-        Ok(keypair)
-    }
-}
-
 #[cfg(feature = "ed25519")]
 impl TryFrom<&OctetParams> for ed25519_dalek::VerifyingKey {
     type Error = Error;
@@ -814,21 +630,6 @@ impl TryFrom<&OctetParams> for ed25519_dalek::VerifyingKey {
     }
 }
 
-#[cfg(feature = "ed25519")]
-impl TryFrom<&OctetParams> for ed25519_dalek::SigningKey {
-    type Error = Error;
-    fn try_from(params: &OctetParams) -> Result<Self, Self::Error> {
-        if params.curve != *"Ed25519" {
-            return Err(Error::CurveNotImplemented(params.curve.to_string()));
-        }
-        let private_key = params
-            .private_key
-            .as_ref()
-            .ok_or(Error::MissingPrivateKey)?;
-        Ok(private_key.0.as_slice().as_ref().try_into()?)
-    }
-}
-
 #[cfg(feature = "ring")]
 impl TryFrom<&OctetParams> for &ring::signature::EdDSAParameters {
     type Error = Error;
@@ -837,23 +638,6 @@ impl TryFrom<&OctetParams> for &ring::signature::EdDSAParameters {
             return Err(Error::CurveNotImplemented(params.curve.to_string()));
         }
         Ok(&ring::signature::ED25519)
-    }
-}
-
-#[cfg(feature = "ring")]
-impl TryFrom<&OctetParams> for ring::signature::Ed25519KeyPair {
-    type Error = Error;
-    fn try_from(params: &OctetParams) -> Result<Self, Self::Error> {
-        if params.curve != *"Ed25519" {
-            return Err(Error::CurveNotImplemented(params.curve.to_string()));
-        }
-        params
-            .private_key
-            .as_ref()
-            .ok_or(Error::MissingPrivateKey)?;
-        let der = simple_asn1::der_encode(params)?;
-        let keypair = Self::from_pkcs8_maybe_unchecked(&der)?;
-        Ok(keypair)
     }
 }
 
@@ -872,16 +656,6 @@ impl From<ed25519_dalek::VerifyingKey> for JWK {
             private_key: None,
         }))
     }
-}
-
-#[cfg(feature = "ed25519")]
-fn ed25519_parse_private(data: &[u8]) -> Result<JWK, Error> {
-    let key: ed25519_dalek::SigningKey = data.try_into()?;
-    Ok(JWK::from(Params::OKP(OctetParams {
-        curve: "Ed25519".to_string(),
-        public_key: Base64urlUInt(ed25519_dalek::VerifyingKey::from(&key).as_bytes().to_vec()),
-        private_key: Some(Base64urlUInt(data.to_owned())),
-    })))
 }
 
 #[cfg(feature = "secp256k1")]
@@ -907,23 +681,6 @@ impl From<k256::PublicKey> for JWK {
     }
 }
 
-#[cfg(feature = "secp256k1")]
-pub fn secp256k1_parse_private(data: &[u8]) -> Result<JWK, Error> {
-    let k = k256::SecretKey::from_sec1_der(data)?;
-    let jwk = JWK {
-        params: Params::EC(ECParams::from(&k)),
-        public_key_use: None,
-        key_operations: None,
-        algorithm: None,
-        key_id: None,
-        x509_url: None,
-        x509_certificate_chain: None,
-        x509_thumbprint_sha1: None,
-        x509_thumbprint_sha256: None,
-    };
-    Ok(jwk)
-}
-
 #[cfg(feature = "secp256r1")]
 pub fn p256_parse(pk_bytes: &[u8]) -> Result<JWK, Error> {
     let pk = p256::PublicKey::from_sec1_bytes(pk_bytes)?;
@@ -945,23 +702,6 @@ impl From<p256::PublicKey> for JWK {
             x509_thumbprint_sha256: None,
         }
     }
-}
-
-#[cfg(feature = "secp256r1")]
-fn p256_parse_private(data: &[u8]) -> Result<JWK, Error> {
-    let k = p256::SecretKey::from_bytes(data.into())?;
-    let jwk = JWK {
-        params: Params::EC(ECParams::from(&k)),
-        public_key_use: None,
-        key_operations: None,
-        algorithm: None,
-        key_id: None,
-        x509_url: None,
-        x509_certificate_chain: None,
-        x509_thumbprint_sha1: None,
-        x509_thumbprint_sha256: None,
-    };
-    Ok(jwk)
 }
 
 #[cfg(feature = "secp384r1")]
@@ -996,23 +736,6 @@ impl From<p384::PublicKey> for JWK {
             x509_thumbprint_sha256: None,
         }
     }
-}
-
-#[cfg(feature = "secp384r1")]
-fn p384_parse_private(data: &[u8]) -> Result<JWK, Error> {
-    let k = p384::SecretKey::from_bytes(data.into())?;
-    let jwk = JWK {
-        params: Params::EC(ECParams::from(&k)),
-        public_key_use: None,
-        key_operations: None,
-        algorithm: None,
-        key_id: None,
-        x509_url: None,
-        x509_certificate_chain: None,
-        x509_thumbprint_sha1: None,
-        x509_thumbprint_sha256: None,
-    };
-    Ok(jwk)
 }
 
 /// Serialize a secp256k1 public key as a 33-byte string with point compression.
@@ -1111,57 +834,6 @@ pub fn rsa_x509_pub_parse(pk_bytes: &[u8]) -> Result<JWK, RsaX509PubParseError> 
 }
 
 #[cfg(feature = "secp256k1")]
-impl TryFrom<&ECParams> for k256::SecretKey {
-    type Error = Error;
-    fn try_from(params: &ECParams) -> Result<Self, Self::Error> {
-        let curve = params.curve.as_ref().ok_or(Error::MissingCurve)?;
-        if curve != "secp256k1" {
-            return Err(Error::CurveNotImplemented(curve.to_string()));
-        }
-        let private_key = params
-            .ecc_private_key
-            .as_ref()
-            .ok_or(Error::MissingPrivateKey)?;
-        let secret_key = k256::SecretKey::from_bytes(private_key.0.as_slice().into())?;
-        Ok(secret_key)
-    }
-}
-
-#[cfg(feature = "secp256r1")]
-impl TryFrom<&ECParams> for p256::SecretKey {
-    type Error = Error;
-    fn try_from(params: &ECParams) -> Result<Self, Self::Error> {
-        let curve = params.curve.as_ref().ok_or(Error::MissingCurve)?;
-        if curve != "P-256" {
-            return Err(Error::CurveNotImplemented(curve.to_string()));
-        }
-        let private_key = params
-            .ecc_private_key
-            .as_ref()
-            .ok_or(Error::MissingPrivateKey)?;
-        let secret_key = p256::SecretKey::from_bytes(private_key.0.as_slice().into())?;
-        Ok(secret_key)
-    }
-}
-
-#[cfg(feature = "secp384r1")]
-impl TryFrom<&ECParams> for p384::SecretKey {
-    type Error = Error;
-    fn try_from(params: &ECParams) -> Result<Self, Self::Error> {
-        let curve = params.curve.as_ref().ok_or(Error::MissingCurve)?;
-        if curve != "P-384" {
-            return Err(Error::CurveNotImplemented(curve.to_string()));
-        }
-        let private_key = params
-            .ecc_private_key
-            .as_ref()
-            .ok_or(Error::MissingPrivateKey)?;
-        let secret_key = p384::SecretKey::from_bytes(private_key.0.as_slice().into())?;
-        Ok(secret_key)
-    }
-}
-
-#[cfg(feature = "secp256k1")]
 impl TryFrom<&ECParams> for k256::PublicKey {
     type Error = Error;
     fn try_from(params: &ECParams) -> Result<Self, Self::Error> {
@@ -1227,22 +899,6 @@ impl From<&k256::PublicKey> for ECParams {
     }
 }
 
-#[cfg(feature = "secp256k1")]
-impl From<&k256::SecretKey> for ECParams {
-    fn from(k: &k256::SecretKey) -> Self {
-        let pk = k.public_key();
-        use k256::elliptic_curve::sec1::ToEncodedPoint;
-        let ec_points = pk.to_encoded_point(false);
-        ECParams {
-            // TODO according to https://tools.ietf.org/id/draft-jones-webauthn-secp256k1-00.html#rfc.section.2 it should be P-256K?
-            curve: Some("secp256k1".to_string()),
-            x_coordinate: ec_points.x().map(|x| Base64urlUInt(x.to_vec())),
-            y_coordinate: ec_points.y().map(|y| Base64urlUInt(y.to_vec())),
-            ecc_private_key: Some(Base64urlUInt(k.to_bytes().to_vec())),
-        }
-    }
-}
-
 #[cfg(feature = "secp256r1")]
 impl From<&p256::PublicKey> for ECParams {
     fn from(pk: &p256::PublicKey) -> Self {
@@ -1257,21 +913,6 @@ impl From<&p256::PublicKey> for ECParams {
     }
 }
 
-#[cfg(feature = "secp256r1")]
-impl From<&p256::SecretKey> for ECParams {
-    fn from(k: &p256::SecretKey) -> Self {
-        let pk = k.public_key();
-        use p256::elliptic_curve::sec1::ToEncodedPoint;
-        let encoded_point = pk.to_encoded_point(false);
-        Self {
-            curve: Some("P-256".to_string()),
-            x_coordinate: encoded_point.x().map(|x| Base64urlUInt(x.to_vec())),
-            y_coordinate: encoded_point.y().map(|y| Base64urlUInt(y.to_vec())),
-            ecc_private_key: Some(Base64urlUInt(k.to_bytes().to_vec())),
-        }
-    }
-}
-
 #[cfg(feature = "secp384r1")]
 impl From<&p384::PublicKey> for ECParams {
     fn from(pk: &p384::PublicKey) -> Self {
@@ -1282,21 +923,6 @@ impl From<&p384::PublicKey> for ECParams {
             x_coordinate: encoded_point.x().map(|x| Base64urlUInt(x.to_vec())),
             y_coordinate: encoded_point.y().map(|y| Base64urlUInt(y.to_vec())),
             ecc_private_key: None,
-        }
-    }
-}
-
-#[cfg(feature = "secp384r1")]
-impl From<&p384::SecretKey> for ECParams {
-    fn from(k: &p384::SecretKey) -> Self {
-        let pk = k.public_key();
-        use p384::elliptic_curve::sec1::ToEncodedPoint;
-        let encoded_point = pk.to_encoded_point(false);
-        ECParams {
-            curve: Some("P-384".to_string()),
-            x_coordinate: encoded_point.x().map(|x| Base64urlUInt(x.to_vec())),
-            y_coordinate: encoded_point.y().map(|y| Base64urlUInt(y.to_vec())),
-            ecc_private_key: Some(Base64urlUInt(k.to_bytes().to_vec())),
         }
     }
 }
@@ -1331,20 +957,15 @@ impl From<Base64urlUInt> for Base64urlUIntString {
 mod tests {
     use super::*;
 
-    const RSA_JSON: &str = include_str!("../../../tests/rsa2048-2020-08-25.json");
-    const RSA_DER: &[u8] = include_bytes!("../../../tests/rsa2048-2020-08-25.der");
     const RSA_PK_DER: &[u8] = include_bytes!("../../../tests/rsa2048-2020-08-25-pk.der");
-    const ED25519_JSON: &str = include_str!("../../../tests/ed25519-2020-10-18.json");
     const JWK_JCS_JSON: &[u8] = include_bytes!("../../../tests/jwk_jcs-pub.json");
 
     #[test]
     fn jwk_to_from_der_rsa() {
-        let key: JWK = serde_json::from_str(RSA_JSON).unwrap();
-        let der = simple_asn1::der_encode(&key).unwrap();
-        assert_eq!(der, RSA_DER);
         let rsa_pk: RSAPublicKey = simple_asn1::der_decode(RSA_PK_DER).unwrap();
         let rsa_params = RSAParams::try_from(&rsa_pk).unwrap();
-        assert_eq!(key.to_public().params, Params::RSA(rsa_params));
+        assert_eq!(simple_asn1::der_encode(&rsa_pk).unwrap(), RSA_PK_DER);
+        assert!(JWK::from(Params::RSA(rsa_params)).is_public());
     }
 
     #[test]
@@ -1359,37 +980,12 @@ mod tests {
     }
 
     #[test]
-    fn rsa_from_str() {
-        let _key: JWK = serde_json::from_str(RSA_JSON).unwrap();
-    }
-
-    #[test]
     fn ed25519_from_str() {
-        let _jwk: JWK = serde_json::from_str(ED25519_JSON).unwrap();
-    }
-
-    #[test]
-    #[cfg(feature = "ed25519")]
-    fn generate_ed25519() {
-        let _key = JWK::generate_ed25519().unwrap();
-    }
-
-    #[test]
-    #[cfg(feature = "secp256k1")]
-    fn secp256k1_generate() {
-        let _jwk = JWK::generate_secp256k1();
-    }
-
-    #[test]
-    #[cfg(feature = "secp256r1")]
-    fn p256_generate() {
-        let _jwk = JWK::generate_p256();
-    }
-
-    #[test]
-    #[cfg(feature = "secp384r1")]
-    fn p384_generate() {
-        let _jwk = JWK::generate_p384();
+        let key: JWK = serde_json::from_str(
+            r#"{"kty":"OKP","crv":"Ed25519","x":"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo"}"#,
+        )
+        .unwrap();
+        assert!(key.is_public());
     }
 
     #[test]
@@ -1427,14 +1023,5 @@ mod tests {
         .unwrap();
         let thumbprint = key.thumbprint().unwrap();
         assert_eq!(thumbprint, "Vy57XrArUrW0NbpI12tEzDHABxMwrTh6HHXRenSpnCo");
-
-        // Reuse the octet sequence from the Ed25519 example
-        let key: JWK = serde_json::from_value(serde_json::json!({
-            "kty": "oct",
-            "k": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo"
-        }))
-        .unwrap();
-        let thumbprint = key.thumbprint().unwrap();
-        assert_eq!(thumbprint, "kcfv_I8tB4KY_ljAlRa1ip-y7jzbPdH0sUlCGb-1Jx8");
     }
 }

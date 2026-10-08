@@ -185,7 +185,13 @@ mod tests {
 
     #[async_std::test]
     async fn p256_roundtrip() {
-        let jwk = JWK::generate_p256();
+        let jwk: JWK = serde_json::from_value(serde_json::json!({
+            "kty": "EC",
+            "crv": "P-256",
+            "x": "acbIQiuMs3i8_uszEjJ2tpTtRM4EU3yz91PH6CdH2V0",
+            "y": "_KcyLj9vWMptnmKtm46GqDz8wf74I5LKgrl2GzH3nSE"
+        }))
+        .unwrap();
 
         let expected_public_key = VerificationMethodType::Multikey
             .encode_public_key(jwk.clone())
@@ -326,8 +332,13 @@ mod tests {
 
     #[async_std::test]
     async fn deny_private_key() {
-        let jwk = JWK::generate_ed25519().unwrap();
-        let json = serde_jcs::to_string(&jwk).unwrap();
+        let json = serde_jcs::to_string(&serde_json::json!({
+            "kty": "OKP",
+            "crv": "Ed25519",
+            "x": "11qYAYKxCrfVS_7TyWkgI8au3POdcQRybY-BmtqEkOU",
+            "d": ""
+        }))
+        .unwrap();
         let json_encoded = multibase::Base::Base64Url.encode(&json);
         let did = DIDBuf::new(format!("did:jwk:{}", json_encoded).into_bytes()).unwrap();
         assert!(matches!(

@@ -2,7 +2,9 @@ use std::borrow::Cow;
 
 use ssi_claims_core::{MessageSignatureError, SignatureError};
 use ssi_crypto::algorithm::SignatureAlgorithmType;
-use ssi_verification_methods::{protocol::WithProtocol, VerificationMethod};
+use ssi_verification_methods::{
+    protocol::WithProtocol, ProofScopedP256Signatures, VerificationMethod,
+};
 
 use crate::AnyProtocol;
 
@@ -54,6 +56,13 @@ where
         self.0
             .sign_multi(algorithm.into_any_signature_algorithm(), messages)
             .await
+    }
+
+    async fn sign_proof_scoped_p256(
+        &self,
+        messages: &[Vec<u8>],
+    ) -> Result<ProofScopedP256Signatures, MessageSignatureError> {
+        self.0.sign_proof_scoped_p256(messages).await
     }
 }
 

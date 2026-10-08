@@ -1,0 +1,8 @@
+{
+  "public_jwk": {
+    "kty": "OKP",
+    "crv": "AleoTestnet1Key",
+    "x": "78_Jh_c7Fw46fX31xS9Ifdg_LeuabZ2p2aIl5fn9zw0"
+  },
+  "signature_hex": "dcda74b85f6546dd330cdbcf02da50a1c4745985fd75adde12cc6d7b21f8cb001f15ce72f6fd4df212c9dbd4d929fa1d3f8c13b83646540522582b56f338c901"
+}

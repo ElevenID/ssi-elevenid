@@ -629,28 +629,14 @@ mod tests {
     use serde_json::json;
     use ssi_core::one_or_many::OneOrMany;
     use ssi_dids_core::document::service;
-    use ssi_jws::encode_sign;
     use static_iref::uri;
 
     const DIDTZ: DIDTz = DIDTz { tzkt_url: None };
-
-    const JSON_PATCH: &str = r#"{"ietf-json-patch": [
-                                {
-                                    "op": "add",
-                                    "path": "/service/1",
-                                    "value": {
-                                        "id": "http://example.org/test_service_id",
-                                        "type": "test_service",
-                                        "serviceEndpoint": "http://example.org/test_service_endpoint"
-                                    }
-                                }
-                            ]}"#;
 
     #[tokio::test]
     async fn test_json_patch_tz1() {
         let address = "tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb";
         let pk = "edpkvGfYw3LyB1UcCahKQk4rF2tvbMUk8GFiTuMjL75uGXrpvKXhjn";
-        let sk = "edsk3QoqBuvdamxouPhin7swCvkQNgq4jP5KZPbwWNnwdZpSpJiEbq";
         let did = format!("did:tz:{}:{}", "sandbox", address);
         let mut doc: Document = serde_json::from_value(json!({
             "@context": "https://www.w3.org/ns/did/v1",
@@ -669,12 +655,11 @@ mod tests {
             }]
         }))
         .unwrap();
-        let key = JWK {
-            key_id: Some(format!("{}#blockchainAccountId", did)),
-            ..ssi_tzkey::jwk_from_tezos_key(sk).unwrap()
-        };
-        let jws = encode_sign(ssi_jwk::Algorithm::EdDSA, JSON_PATCH, &key).unwrap();
-        let json_update = Updates::SignedIetfJsonPatch(vec![jws.clone()]);
+        let json_update = Updates::SignedIetfJsonPatch(vec![include_str!(
+            "../tests/fixtures/json-patch-tz1.jws"
+        )
+        .trim()
+        .to_string()]);
         DIDTZ
             .tier3_updates(Prefix::TZ1, &mut doc, json_update)
             .await
@@ -696,7 +681,6 @@ mod tests {
     async fn test_json_patch_tz2() {
         let address = "tz2RZoj9oqoA8bDeUoAKLjf8nLPQKmYjaj6Q";
         let pk = "sppk7bRNbJ2n9PNQo295UJiYQ8iMma8ysRH9mCRFB14yhzLCwdGay9y";
-        let sk = "spsk1Uc5MDutpZmwPVeSLL2BbtCAqfrG8zbMs6dwoaeXX8kw35S474";
         let did = format!("did:tz:{}:{}", "sandbox", address);
         let mut doc: Document = serde_json::from_value(json!({
             "@context": "https://www.w3.org/ns/did/v1",
@@ -715,27 +699,11 @@ mod tests {
             }]
         }))
         .unwrap();
-        // let public_key = pk.from_base58check().unwrap()[4..].to_vec();
-        let private_key = bs58::decode(&sk).with_check(None).into_vec().unwrap()[4..].to_owned();
-        use ssi_jwk::ECParams;
-        let key = JWK {
-            params: ssi_jwk::Params::EC(ECParams {
-                curve: Some("secp256k1".to_string()),
-                x_coordinate: None,
-                y_coordinate: None,
-                ecc_private_key: Some(Base64urlUInt(private_key)),
-            }),
-            public_key_use: None,
-            key_operations: None,
-            algorithm: None,
-            key_id: Some(format!("{}#blockchainAccountId", did)),
-            x509_url: None,
-            x509_certificate_chain: None,
-            x509_thumbprint_sha1: None,
-            x509_thumbprint_sha256: None,
-        };
-        let jws = encode_sign(ssi_jwk::Algorithm::ES256KR, JSON_PATCH, &key).unwrap();
-        let json_update = Updates::SignedIetfJsonPatch(vec![jws.clone()]);
+        let json_update = Updates::SignedIetfJsonPatch(vec![include_str!(
+            "../tests/fixtures/json-patch-tz2.jws"
+        )
+        .trim()
+        .to_string()]);
         DIDTZ
             .tier3_updates(Prefix::TZ2, &mut doc, json_update)
             .await
@@ -757,7 +725,6 @@ mod tests {
     async fn test_json_patch_tz3() {
         let address = "tz3agP9LGe2cXmKQyYn6T68BHKjjktDbbSWX";
         let pk = "p2pk679D18uQNkdjpRxuBXL5CqcDKTKzsiXVtc9oCUT6xb82zQmgUks";
-        let sk = "p2sk3PM77YMR99AvD3fSSxeLChMdiQ6kkEzqoPuSwQqhPsh29irGLC";
         let did = format!("did:tz:{}:{}", "sandbox", address);
         let mut doc: Document = serde_json::from_value(json!({
             "@context": "https://www.w3.org/ns/did/v1",
@@ -776,26 +743,11 @@ mod tests {
             }]
         }))
         .unwrap();
-        // let public_key = pk.from_base58check().unwrap()[4..].to_vec();
-        let private_key = bs58::decode(&sk).with_check(None).into_vec().unwrap()[4..].to_owned();
-        let key = JWK {
-            params: ssi_jwk::Params::EC(ssi_jwk::ECParams {
-                curve: Some("P-256".to_string()),
-                x_coordinate: None,
-                y_coordinate: None,
-                ecc_private_key: Some(Base64urlUInt(private_key)),
-            }),
-            public_key_use: None,
-            key_operations: None,
-            algorithm: None,
-            key_id: Some(format!("{}#blockchainAccountId", did)),
-            x509_url: None,
-            x509_certificate_chain: None,
-            x509_thumbprint_sha1: None,
-            x509_thumbprint_sha256: None,
-        };
-        let jws = encode_sign(ssi_jwk::Algorithm::ES256, JSON_PATCH, &key).unwrap();
-        let json_update = Updates::SignedIetfJsonPatch(vec![jws.clone()]);
+        let json_update = Updates::SignedIetfJsonPatch(vec![include_str!(
+            "../tests/fixtures/json-patch-tz3.jws"
+        )
+        .trim()
+        .to_string()]);
         DIDTZ
             .tier3_updates(Prefix::TZ3, &mut doc, json_update)
             .await

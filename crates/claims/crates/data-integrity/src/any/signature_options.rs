@@ -1,7 +1,6 @@
 use serde::Deserialize;
 use ssi_core::JsonPointerBuf;
 use ssi_di_sd_primitives::HmacShaAnyKey;
-use ssi_verification_methods::multikey::MultikeyPair;
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -11,8 +10,6 @@ pub struct AnySignatureOptions {
 
     #[serde(rename = "hmacKeyString")]
     pub hmac_key: Option<HmacShaAnyKey>,
-
-    pub key_pair: Option<MultikeyPair>,
 
     #[cfg(all(feature = "w3c", feature = "bbs"))]
     #[serde(default)]
@@ -71,7 +68,6 @@ impl From<AnySignatureOptions> for ssi_data_integrity_suites::ecdsa_sd_2023::Sig
         Self {
             mandatory_pointers: o.mandatory_pointers,
             hmac_key: o.hmac_key,
-            key_pair: o.key_pair,
         }
     }
 }
@@ -82,7 +78,6 @@ impl From<ssi_data_integrity_suites::ecdsa_sd_2023::SignatureOptions> for AnySig
         Self {
             mandatory_pointers: value.mandatory_pointers,
             hmac_key: value.hmac_key,
-            key_pair: value.key_pair,
             ..Default::default()
         }
     }

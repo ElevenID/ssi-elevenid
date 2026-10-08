@@ -1,12 +1,8 @@
 use did_tz::DIDTz;
-use iref::{IriBuf, UriBuf};
-use rand_chacha::rand_core::SeedableRng;
+use iref::UriBuf;
 use serde_json::json;
 use ssi_claims::{
-    data_integrity::{
-        signing::AlterSignature, AnyInputSuiteOptions, AnySuite, CryptographicSuite, DataIntegrity,
-        ProofOptions as SuiteOptions,
-    },
+    data_integrity::{signing::AlterSignature, AnySuite, DataIntegrity},
     vc::{
         syntax::NonEmptyVec,
         v1::{JsonCredential, JsonPresentation},
@@ -15,12 +11,11 @@ use ssi_claims::{
 };
 use ssi_dids_core::{did, resolution::Options, DIDResolver, VerificationMethodDIDResolver};
 use ssi_jwk::JWK;
-use ssi_jws::JwsString;
-use ssi_verification_methods_core::{ProofPurpose, SingleSecretSigner};
+use ssi_verification_methods_core::ProofPurpose;
 use static_iref::{iri, uri};
 
 const TZ1: &str = "did:tz:tz1YwA1FwpgLtc1G8DKbbZ6e6PTb1dQMRn5x";
-const TZ1_JSON: &str = "{\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"x\":\"GvidwVqGgicuL68BRM89OOtDzK1gjs8IqUXFkjKkm8Iwg18slw==\",\"d\":\"K44dAtJ-MMl-JKuOupfcGRPI5n3ZVH_Gk65c6Rcgn_IV28987PMw_b6paCafNOBOi5u-FZMgGJd3mc5MkfxfwjCrXQM-\"}";
+const TZ1_JSON: &str = "{\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"x\":\"GvidwVqGgicuL68BRM89OOtDzK1gjs8IqUXFkjKkm8Iwg18slw==\"}";
 
 const DIDTZ: DIDTz = DIDTz::new(None);
 
@@ -170,20 +165,6 @@ async fn test_derivation_tz3() {
     )
 }
 
-// #[test]
-// fn resign() {
-//     let key: JWK = JWK::generate_ed25519().unwrap();
-//     eprintln!("key: {key}");
-//     eprintln!("tz: {}", DIDTZ.generate(&key).unwrap());
-//     let payload: [u8; 64] = [44, 233, 177, 108, 248, 117, 84, 121, 35, 7, 87, 119, 2, 212, 229, 157, 221, 208, 206, 76, 185, 92, 57, 63, 138, 219, 168, 195, 177, 107, 213, 58, 27, 241, 132, 88, 62, 203, 41, 12, 104, 219, 160, 226, 140, 67, 120, 163, 165, 238, 40, 24, 159, 190, 218, 46, 201, 184, 111, 127, 108, 241, 35, 211];
-
-//     let header = ssi_jws::Header::new_unencoded(ssi_jwk::Algorithm::EdBlake2b, None);
-//     let signing_bytes = header.encode_signing_bytes(&payload);
-//     let signature = ssi_jws::sign_bytes(ssi_jwk::Algorithm::EdBlake2b, &signing_bytes, &key).unwrap();
-//     let jws = ssi_jws::JwsBuf::encode_detached(header, &signature);
-//     eprintln!("JWS: {jws}");
-// }
-
 #[tokio::test]
 async fn credential_prove_verify_did_tz1() {
     // use ssi_claims::{Credential, Issuer, LinkedDataProofOptions, URI};
@@ -259,16 +240,8 @@ async fn credential_prove_verify_did_tz1() {
     // assert!(vc_bad_issuer.verify(&didtz).await.unwrap().is_err());
 
     // Check that proof JWK must match proof verificationMethod
-    let wrong_signer = SingleSecretSigner::new(JWK::generate_ed25519().unwrap());
-    let vc_wrong_key =
-    ssi_claims::data_integrity::suites::Ed25519BLAKE2BDigestSize20Base58CheckEncodedSignature2021.sign(
-        vc.claims.clone(),
-        &didtz,
-        &wrong_signer,
-        vc.proofs.first().unwrap().configuration().to_owned().into_options()
-    )
-    .await
-    .unwrap();
+    let vc_wrong_key: DataIntegrity<JsonCredential, AnySuite> =
+        serde_json::from_str(include_str!("fixtures/tz1-wrong-vc.json")).unwrap();
     assert!(vc_wrong_key.verify(&params).await.unwrap().is_err());
 
     let vp = DataIntegrity::new(
@@ -299,13 +272,11 @@ async fn credential_prove_verify_did_tz1() {
     // assert!(vp.verify(&didtz).await.unwrap().is_ok());
 
     // mess with the VP proof to make verify fail
-    let mut vp1 = vp.clone();
-    vp1.proofs.first_mut().unwrap().signature.jws = JwsString::from_string(format!(
-        "x{}",
-        vp1.proofs.first_mut().unwrap().signature.jws
-    ))
-    .unwrap();
-    assert!(vp1.verify(&params).await.is_err());
+    let mut vp1: DataIntegrity<JsonPresentation, AnySuite> =
+        serde_json::from_value(serde_json::to_value(&vp).unwrap()).unwrap();
+    vp1.proofs.first_mut().unwrap().signature.alter();
+    let tampered_result = vp1.verify(&params).await;
+    assert!(tampered_result.is_err() || tampered_result.is_ok_and(|result| result.is_err()));
 
     // test that holder is verified
     let mut _vp2 = vp.clone();
@@ -315,205 +286,59 @@ async fn credential_prove_verify_did_tz1() {
     // assert!(vp2.verify(&didtz).await.unwrap().is_err());
 }
 
-#[tokio::test]
-async fn credential_prove_verify_did_tz2() {
-    use ssi_jwk::Algorithm;
-    // 	use ssi_claims::{Credential, Issuer, LinkedDataProofOptions, URI};
+async fn signed_tezos_vectors_verify(
+    public_json: &str,
+    vc_json: &str,
+    wrong_vc_json: &str,
+    vp_json: &str,
+) {
+    let public_key: JWK = serde_json::from_str(public_json).unwrap();
+    let did = DIDTZ.generate(&public_key).unwrap();
+    let resolver = VerificationMethodDIDResolver::new(DIDTZ);
+    let params = VerificationParameters::from_resolver(&resolver);
 
-    let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(2);
-    let mut key = JWK::generate_secp256k1_from(&mut rng);
-    // mark this key as being for use with key recovery
-    key.algorithm = Some(Algorithm::ES256KR);
-    let did = DIDTZ.generate(&key).unwrap();
-
-    let cred = JsonCredential::new(
-        None,
-        did.clone().into_uri().into(),
-        "2021-02-18T20:23:13Z".parse().unwrap(),
-        NonEmptyVec::new(json_syntax::json!({
-            "id": "did:example:foo"
-        })),
-    );
-
-    let didtz = VerificationMethodDIDResolver::new(DIDTZ);
-    let params = VerificationParameters::from_resolver(&didtz);
-    let signer = SingleSecretSigner::new(key.clone()).into_local();
-
-    let issuance_date = cred.issuance_date.clone().unwrap();
-    let created_date =
-        xsd_types::DateTimeStamp::new(issuance_date.date_time, issuance_date.offset.unwrap());
-    let vc_issue_options = SuiteOptions::new(
-        created_date.into(),
-        IriBuf::new(format!("{did}#blockchainAccountId"))
-            .unwrap()
-            .into(),
-        ProofPurpose::Assertion,
-        Default::default(),
-    );
-    let suite = AnySuite::pick(&key, vc_issue_options.verification_method.as_ref()).unwrap();
-    let vc = suite
-        .sign(cred, &didtz, &signer, vc_issue_options)
-        .await
-        .unwrap();
-    println!("{}", serde_json::to_string_pretty(&vc.proofs).unwrap());
+    let mut vc: DataIntegrity<JsonCredential, AnySuite> = serde_json::from_str(vc_json).unwrap();
+    assert_eq!(vc.issuer, did.clone().into_uri().into());
     assert!(vc.verify(&params).await.unwrap().is_ok());
 
-    // Test that issuer property is used for verification.
-    let mut vc_bad_issuer = vc.clone();
-    vc_bad_issuer.issuer = uri!("did:example:bad").to_owned().into();
-    assert!(vc_bad_issuer.verify(&params).await.unwrap().is_err());
+    vc.issuer = uri!("did:example:bad").to_owned().into();
+    assert!(vc.verify(&params).await.unwrap().is_err());
 
-    // Check that proof JWK must match proof verificationMethod
-    let wrong_signer = SingleSecretSigner::new(JWK::generate_secp256k1_from(&mut rng)).into_local();
-    let vc_wrong_key = suite
-        .sign(
-            vc.claims.clone(),
-            &didtz,
-            &wrong_signer,
-            vc.proofs
-                .first()
-                .unwrap()
-                .configuration()
-                .to_owned()
-                .into_options()
-                .cast(),
-        )
-        .await
-        .unwrap();
-    assert!(vc_wrong_key.verify(&params).await.unwrap().is_err());
+    let wrong_key_vc: DataIntegrity<JsonCredential, AnySuite> =
+        serde_json::from_str(wrong_vc_json).unwrap();
+    assert!(wrong_key_vc.verify(&params).await.unwrap().is_err());
 
-    let presentation = JsonPresentation::new(
-        Some(uri!("http://example.org/presentations/3731").to_owned()),
-        Some(did.clone().into()),
-        vec![vc],
-    );
-
-    let vp_issue_options = SuiteOptions::new(
-        "2021-02-18T20:23:13Z".parse().unwrap(),
-        IriBuf::new(format!("{did}#blockchainAccountId"))
-            .unwrap()
-            .into(),
-        ProofPurpose::Authentication,
-        Default::default(),
-    );
-    let suite = AnySuite::pick(&key, vp_issue_options.verification_method.as_ref()).unwrap();
-    let vp = suite
-        .sign(presentation, &didtz, &signer, vp_issue_options)
-        .await
-        .unwrap();
-    println!("VP: {}", serde_json::to_string_pretty(&vp.proofs).unwrap());
+    let mut vp: DataIntegrity<JsonPresentation, AnySuite> = serde_json::from_str(vp_json).unwrap();
+    assert_eq!(vp.holder.as_ref().unwrap().as_str(), did.as_str());
     assert!(vp.verify(&params).await.unwrap().is_ok());
 
-    // mess with the VP proof to make verify fail
-    let mut vp1 = vp.clone();
-    vp1.proofs.first_mut().unwrap().signature.alter();
-    assert!(vp1.verify(&params).await.is_err());
+    vp.proofs.first_mut().unwrap().signature.alter();
+    let tampered_result = vp.verify(&params).await;
+    assert!(tampered_result.is_err() || tampered_result.is_ok_and(|result| result.is_err()));
 
-    // test that holder is verified
-    let mut vp2 = vp.clone();
-    vp2.holder = Some(did!("did:example:bad").to_owned().into());
-    assert!(vp2.verify(&params).await.unwrap().is_err());
+    let mut vp: DataIntegrity<JsonPresentation, AnySuite> = serde_json::from_str(vp_json).unwrap();
+    vp.holder = Some(did!("did:example:bad").to_owned().into());
+    assert!(vp.verify(&params).await.unwrap().is_err());
+}
+
+#[tokio::test]
+async fn credential_prove_verify_did_tz2() {
+    signed_tezos_vectors_verify(
+        include_str!("fixtures/tz2-public.json"),
+        include_str!("fixtures/tz2-vc.json"),
+        include_str!("fixtures/tz2-wrong-vc.json"),
+        include_str!("fixtures/tz2-vp.json"),
+    )
+    .await;
 }
 
 #[tokio::test]
 async fn credential_prove_verify_did_tz3() {
-    use ssi_jwk::Algorithm;
-
-    let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(2);
-    let mut key = JWK::generate_p256_from(&mut rng);
-    key.algorithm = Some(Algorithm::ESBlake2b);
-    let did = DIDTZ.generate(&key).unwrap();
-
-    let cred = JsonCredential::new(
-        None,
-        did.clone().into_uri().into(),
-        "2021-03-04T14:18:21Z".parse().unwrap(),
-        NonEmptyVec::new(json_syntax::json!({
-            "id": "did:example:foo"
-        })),
-    );
-
-    let didtz = VerificationMethodDIDResolver::new(DIDTZ);
-    let params = VerificationParameters::from_resolver(&didtz);
-    let signer = SingleSecretSigner::new(key.clone()).into_local();
-
-    let issuance_date = cred.issuance_date.clone().unwrap();
-    let created_date =
-        xsd_types::DateTimeStamp::new(issuance_date.date_time, issuance_date.offset.unwrap());
-    let vc_issue_options = SuiteOptions::new(
-        created_date.into(),
-        IriBuf::new(format!("{did}#blockchainAccountId"))
-            .unwrap()
-            .into(),
-        ProofPurpose::Assertion,
-        AnyInputSuiteOptions::default()
-            .with_public_key(key.to_public())
-            .unwrap(),
-    );
-    let suite = AnySuite::pick(&key, vc_issue_options.verification_method.as_ref()).unwrap();
-    eprintln!("suite {suite:?}");
-    let vc = suite
-        .sign(cred, &didtz, &signer, vc_issue_options)
-        .await
-        .unwrap();
-    println!("{}", serde_json::to_string_pretty(&vc.proofs).unwrap());
-    assert!(vc.verify(&params).await.unwrap().is_ok());
-
-    // Test that issuer property is used for verification.
-    let mut vc_bad_issuer = vc.clone();
-    vc_bad_issuer.issuer = uri!("did:example:bad").to_owned().into();
-    assert!(vc_bad_issuer.verify(&params).await.unwrap().is_err());
-
-    // Check that proof JWK must match proof verificationMethod
-    let wrong_signer = SingleSecretSigner::new(JWK::generate_p256_from(&mut rng)).into_local();
-    let vc_wrong_key = suite
-        .sign(
-            vc.claims.clone(),
-            &didtz,
-            &wrong_signer,
-            vc.proofs
-                .first()
-                .unwrap()
-                .configuration()
-                .to_owned()
-                .into_options()
-                .cast(),
-        )
-        .await
-        .unwrap();
-    assert!(vc_wrong_key.verify(&params).await.unwrap().is_err());
-
-    let presentation = JsonPresentation::new(
-        Some(uri!("http://example.org/presentations/3731").to_owned()),
-        Some(did.clone().into()),
-        vec![vc],
-    );
-
-    let vp_issue_options = SuiteOptions::new(
-        "2021-03-04T14:18:21Z".parse().unwrap(),
-        IriBuf::new(format!("{did}#blockchainAccountId"))
-            .unwrap()
-            .into(),
-        ProofPurpose::Authentication,
-        AnyInputSuiteOptions::default()
-            .with_public_key(key.to_public())
-            .unwrap(),
-    );
-    let suite = AnySuite::pick(&key, vp_issue_options.verification_method.as_ref()).unwrap();
-    let vp = suite
-        .sign(presentation, &didtz, &signer, vp_issue_options)
-        .await
-        .unwrap();
-    println!("VP: {}", serde_json::to_string_pretty(&vp.proofs).unwrap());
-    assert!(vp.verify(&params).await.unwrap().is_ok());
-
-    // mess with the VP proof to make verify fail
-    let mut vp1 = vp.clone();
-    vp1.proofs.first_mut().unwrap().signature.alter();
-    assert!(vp1.verify(&params).await.is_err());
-
-    // test that holder is verified
-    let mut vp2 = vp.clone();
-    vp2.holder = Some(did!("did:example:bad").to_owned().into());
-    assert!(vp2.verify(params).await.unwrap().is_err());
+    signed_tezos_vectors_verify(
+        include_str!("fixtures/tz3-public.json"),
+        include_str!("fixtures/tz3-vc.json"),
+        include_str!("fixtures/tz3-wrong-vc.json"),
+        include_str!("fixtures/tz3-vp.json"),
+    )
+    .await;
 }

@@ -17,19 +17,16 @@ use clap::{Parser, Subcommand};
 use core::fmt;
 use iref::UriBuf;
 use ssi_claims_core::VerificationParameters;
-use ssi_data_integrity::{AnySuite, ProofOptions};
 use ssi_dids::{VerificationMethodDIDResolver, DIDJWK};
-use ssi_jwk::JWK;
 use ssi_status::{
     any::AnyStatusMap, bitstring_status_list, EncodedStatusMap, FromBytes, FromBytesOptions,
     StatusSizeError,
 };
-use ssi_verification_methods::{ReferenceOrOwned, SingleSecretSigner};
 use std::{
     fs,
     io::{self, stdout, Read, Write},
     num::ParseIntError,
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::ExitCode,
     str::FromStr,
 };
@@ -44,15 +41,6 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
-    SignVcJwt {
-        /// Credential filename.
-        filename: Option<PathBuf>,
-
-        /// Secret key to sign the JWS.
-        #[clap(short, long)]
-        key: PathBuf,
-    },
-
     /// Read a status list.
     Read {
         /// Path to a file representing the status list.
@@ -75,46 +63,12 @@ enum Command {
 
         /// Status values.
         list: Vec<StatusValue>,
-
-        /// Secret key to sign the status list.
-        #[clap(short, long)]
-        key: Option<PathBuf>,
     },
 }
 
 impl Command {
     async fn run(self) -> Result<(), Error> {
         match self {
-            Self::SignVcJwt { filename, key } => {
-                let source = filename.map(Source::File).unwrap_or_default();
-                let bytes = match source.read() {
-                    Ok(content) => content,
-                    Err(e) => return Err(Error::ReadFile(source, e)),
-                };
-
-                let jwk = read_jwk(&key)?;
-
-                let header = ssi_jws::Header {
-                    algorithm: jwk.algorithm.unwrap(),
-                    type_: Some("vc+ld+json+jwt".to_owned()),
-                    content_type: Some("vc+ld+json".to_owned()),
-                    key_id: Some(DIDJWK::generate_url(&jwk.to_public()).into_string()),
-                    ..Default::default()
-                };
-
-                let signing_bytes = header.encode_signing_bytes(&bytes);
-                let signature =
-                    ssi_jws::sign_bytes_b64(header.algorithm, &signing_bytes, &jwk).unwrap();
-
-                let jws = ssi_jws::JwsString::from_signing_bytes_and_signature(
-                    signing_bytes,
-                    signature.into_bytes(),
-                )
-                .unwrap();
-
-                std::io::stdout().write_all(jws.as_bytes()).unwrap();
-                Ok(())
-            }
             Self::Read {
                 filename,
                 media_type,
@@ -145,8 +99,8 @@ impl Command {
                 println!("{}", serde_json::to_string_pretty(&list).unwrap());
                 Ok(())
             }
-            Self::Create { id, list, key } => {
-                let data = create_bitstring_status_list(id.clone(), list, key).await?;
+            Self::Create { id, list } => {
+                let data = create_bitstring_status_list(id, list);
                 stdout().write_all(&data).unwrap();
                 Ok(())
             }
@@ -154,11 +108,7 @@ impl Command {
     }
 }
 
-async fn create_bitstring_status_list(
-    id: UriBuf,
-    list: Vec<StatusValue>,
-    key: Option<PathBuf>,
-) -> Result<Vec<u8>, Error> {
+fn create_bitstring_status_list(id: UriBuf, list: Vec<StatusValue>) -> Vec<u8> {
     let mut status_list = bitstring_status_list::SizedStatusList::new(
         bitstring_status_list::StatusSize::default(),
         bitstring_status_list::TimeToLive::default(),
@@ -174,32 +124,9 @@ async fn create_bitstring_status_list(
         status_list.to_credential_subject(None, bitstring_status_list::StatusPurpose::Revocation),
     );
 
-    match key {
-        Some(path) => {
-            use ssi_data_integrity::CryptographicSuite;
-            let jwk = read_jwk(&path)?;
-            let did = DIDJWK::generate_url(&jwk.to_public());
-            let resolver = VerificationMethodDIDResolver::new(DIDJWK);
-            let signer = SingleSecretSigner::new(jwk.clone()).into_local();
-            let verification_method = ReferenceOrOwned::Reference(did.into());
-            let suite = AnySuite::pick(&jwk, Some(&verification_method)).unwrap();
-            let params = ProofOptions::from_method(verification_method);
-            let vc = suite
-                .sign(credential, &resolver, &signer, params)
-                .await
-                .unwrap();
-
-            Ok(serde_json::to_string_pretty(&vc).unwrap().into_bytes())
-        }
-        None => Ok(serde_json::to_string_pretty(&credential)
-            .unwrap()
-            .into_bytes()),
-    }
-}
-
-fn read_jwk(path: &Path) -> Result<JWK, KeyError> {
-    let buffer = fs::read_to_string(path)?;
-    serde_json::from_str(&buffer).map_err(Into::into)
+    serde_json::to_string_pretty(&credential)
+        .unwrap()
+        .into_bytes()
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -213,20 +140,8 @@ enum Error {
     #[error("unable to decode {0}: {1}")]
     Decode(Source, ssi_status::any::DecodeError),
 
-    #[error("unable to read key: {0}")]
-    Key(#[from] KeyError),
-
     #[error(transparent)]
     StatusSize(#[from] StatusSizeError),
-}
-
-#[derive(Debug, thiserror::Error)]
-enum KeyError {
-    #[error(transparent)]
-    IO(#[from] io::Error),
-
-    #[error(transparent)]
-    Json(#[from] serde_json::Error),
 }
 
 #[derive(Debug, Default, Clone)]

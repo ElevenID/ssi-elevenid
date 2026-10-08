@@ -2,7 +2,7 @@ use std::{borrow::Cow, hash::Hash};
 
 use iref::{Iri, IriBuf, UriBuf};
 use serde::{Deserialize, Serialize};
-use ssi_claims_core::{InvalidProof, MessageSignatureError, ProofValidationError, ProofValidity};
+use ssi_claims_core::{InvalidProof, ProofValidationError, ProofValidity};
 use ssi_jwk::JWK;
 use ssi_verification_methods_core::{JwkVerificationMethod, VerificationMethodSet};
 use static_iref::iri;
@@ -59,15 +59,6 @@ impl RsaVerificationKey2018 {
 
     pub fn public_key_jwk(&self) -> &JWK {
         &self.public_key
-    }
-
-    pub fn sign_bytes(
-        &self,
-        data: &[u8],
-        secret_key: &JWK,
-    ) -> Result<Vec<u8>, MessageSignatureError> {
-        ssi_jws::sign_bytes(ssi_jwk::Algorithm::RS256, data, secret_key)
-            .map_err(|_| MessageSignatureError::InvalidSecretKey)
     }
 
     pub fn verify_bytes(

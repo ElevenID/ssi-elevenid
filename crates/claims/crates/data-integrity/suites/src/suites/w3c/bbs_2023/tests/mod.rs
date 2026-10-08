@@ -9,7 +9,7 @@ use json_syntax::Parse;
 use lazy_static::lazy_static;
 use rdf_types::{BlankIdBuf, VocabularyMut};
 use serde::{Deserialize, Serialize};
-use ssi_bbs::{BBSplusPublicKey, BBSplusSecretKey};
+use ssi_bbs::BBSplusPublicKey;
 use ssi_claims_core::{ClaimsValidity, ValidateClaims};
 use ssi_di_sd_primitives::JsonPointerBuf;
 use ssi_json_ld::{JsonLdError, JsonLdNodeObject, JsonLdObject, JsonLdTypes};
@@ -83,7 +83,6 @@ pub const HMAC_KEY_STRING: &str =
     "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF";
 
 pub const PUBLIC_KEY_HEX: &str = "a4ef1afa3da575496f122b9b78b8c24761531a8a093206ae7c45b80759c168ba4f7a260f9c3367b6c019b4677841104b10665edbe70ba3ebe7d9cfbffbf71eb016f70abfbb163317f372697dc63efd21fc55764f63926a8f02eaea325a2a888f";
-pub const SECRET_KEY_HEX: &str = "66d36e118832af4c5e28b2dfe1b9577857e57b042a33e06bdea37b811ed09ee0";
 
 pub const PRESENTATION_HEADER_HEX: &str = "113377aa";
 
@@ -121,8 +120,6 @@ lazy_static! {
             .unwrap();
     pub static ref PUBLIC_KEY: BBSplusPublicKey =
         BBSplusPublicKey::from_bytes(&hex::decode(PUBLIC_KEY_HEX).unwrap()).unwrap();
-    pub static ref SECRET_KEY: BBSplusSecretKey =
-        BBSplusSecretKey::from_bytes(&hex::decode(SECRET_KEY_HEX).unwrap()).unwrap();
     pub static ref PRESENTATION_HEADER: Vec<u8> = hex::decode(PRESENTATION_HEADER_HEX).unwrap();
     pub static ref LABEL_MAP: HashMap<BlankIdBuf, BlankIdBuf> = [
         ("_:c14n0".parse().unwrap(), "_:b2".parse().unwrap()),

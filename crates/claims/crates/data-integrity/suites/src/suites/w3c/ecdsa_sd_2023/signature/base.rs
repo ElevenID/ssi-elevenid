@@ -23,37 +23,37 @@ pub async fn generate_proof<T>(
 where
     T: MessageSigner<ES256OrES384>,
 {
-    let proof_scoped_key_pair = match hash_data.transformed_document.options.key_pair {
-        Some(key_pair) => {
-            let (_, multi_encoded) = key_pair.secret.decode().map_err(SignatureError::other)?;
-            let multi_encoded =
-                MultiEncodedBuf::new(multi_encoded).map_err(SignatureError::other)?;
-            multi_encoded.decode().map_err(SignatureError::other)?
-        }
-        None => {
-            let mut rng = rand::thread_rng();
-
-            // Locally generated P-256 ECDSA key pair, scoped to the specific proof and
-            // destroyed with this algorithm terminates.
-            p256::SecretKey::random(&mut rng)
-        }
-    };
-
-    let public_key = proof_scoped_key_pair.public_key();
-    let signing_key: p256::ecdsa::SigningKey = proof_scoped_key_pair.into();
-
-    let signatures: Vec<[u8; 64]> = hash_data
+    let messages: Vec<Vec<u8>> = hash_data
         .transformed_document
         .non_mandatory
         .into_nquads_lines()
         .into_iter()
-        .map(|line| {
-            use p256::ecdsa::{signature::Signer, Signature};
-            // Sha256::digest(line).into()
-            let signature: Signature = signing_key.sign(line.as_bytes());
-            signature.to_bytes().into()
-        })
+        .map(|line| line.into_bytes())
         .collect();
+
+    let proof_scoped = signer.sign_proof_scoped_p256(&messages).await?;
+    let public_key = p256::PublicKey::from_sec1_bytes(&proof_scoped.public_key_sec1)
+        .map_err(SignatureError::other)?;
+    if proof_scoped.signatures.len() != messages.len() {
+        return Err(SignatureError::other(
+            "proof-scoped signature count mismatch",
+        ));
+    }
+    let verifying_key = p256::ecdsa::VerifyingKey::from(&public_key);
+    let signatures: Vec<[u8; 64]> = proof_scoped
+        .signatures
+        .iter()
+        .zip(&messages)
+        .map(|(signature, message)| {
+            use p256::ecdsa::signature::Verifier;
+            let signature =
+                p256::ecdsa::Signature::from_slice(signature).map_err(SignatureError::other)?;
+            verifying_key
+                .verify(message, &signature)
+                .map_err(SignatureError::other)?;
+            Ok(signature.to_bytes().into())
+        })
+        .collect::<Result<_, SignatureError>>()?;
 
     let encoded_public_key: MultiEncodedBuf = MultiEncodedBuf::encode(&public_key);
 

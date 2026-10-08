@@ -281,7 +281,7 @@ pub enum JWSDecodeVerifyError {
 
 /// Decode and verify JWS with public key inside payload
 ///
-/// Similar to [ssi_jwt::decode_verify] or [ssi_jws::decode_verify], but for when the payload (claims) must be parsed to
+/// Similar to [ssi_jws::decode_verify], but for when the payload (claims) must be parsed to
 /// determine the public key.
 ///
 /// This function decodes and verifies a JWS/JWT, where the public key is expected to be found

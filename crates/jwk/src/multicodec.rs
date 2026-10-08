@@ -16,33 +16,17 @@ impl JWK {
             ssi_multicodec::ED25519_PUB => {
                 crate::ed25519_parse(k).map_err(FromMulticodecError::Ed25519Pub)
             }
-            #[cfg(feature = "ed25519")]
-            ssi_multicodec::ED25519_PRIV => {
-                crate::ed25519_parse_private(k).map_err(FromMulticodecError::Ed25519Priv)
-            }
             #[cfg(feature = "secp256k1")]
             ssi_multicodec::SECP256K1_PUB => {
                 crate::secp256k1_parse(k).map_err(FromMulticodecError::Secp256k1Pub)
-            }
-            #[cfg(feature = "secp256k1")]
-            ssi_multicodec::SECP256K1_PRIV => {
-                crate::secp256k1_parse_private(k).map_err(FromMulticodecError::Secp256k1Priv)
             }
             #[cfg(feature = "secp256r1")]
             ssi_multicodec::P256_PUB => {
                 crate::p256_parse(k).map_err(FromMulticodecError::Secp256r1Pub)
             }
-            #[cfg(feature = "secp256r1")]
-            ssi_multicodec::P256_PRIV => {
-                crate::p256_parse_private(k).map_err(FromMulticodecError::Secp256r1Priv)
-            }
             #[cfg(feature = "secp384r1")]
             ssi_multicodec::P384_PUB => {
                 crate::p384_parse(k).map_err(FromMulticodecError::Secp384r1Pub)
-            }
-            #[cfg(feature = "secp384r1")]
-            ssi_multicodec::P384_PRIV => {
-                crate::p384_parse_private(k).map_err(FromMulticodecError::Secp384r1Priv)
             }
             #[cfg(feature = "bbs")]
             ssi_multicodec::BLS12_381_G2_PUB => {
@@ -204,14 +188,14 @@ pub enum ToMulticodecError {
     InvalidInputKey(Error),
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "secp256r1"))]
 mod tests {
     use super::*;
 
     #[test]
-    #[cfg(feature = "secp256r1")]
     fn test_multicodec_jwk_jcs_pub() {
-        let jwk = JWK::generate_p256();
+        let jwk: JWK =
+            JWK::try_from(include_bytes!("../../../tests/jwk_jcs-pub.json").as_slice()).unwrap();
         // Note: can't use JWK::to_multicodec() because it's based on the particular key within the JWK
         // it will see the P256 key and assign a multicodec of 0x1200.
         // For jwk_jcs_pub multicodecs, we can only decode them

@@ -10,12 +10,11 @@ use serde::{Deserialize, Serialize};
 use ssi_claims_core::{
     InvalidProof, MessageSignatureError, ProofValidationError, ProofValidity, SignatureError,
 };
-use ssi_crypto::algorithm::SignatureAlgorithmType;
 use ssi_jwk::JWK;
 use ssi_multicodec::{MultiCodec, MultiEncodedBuf};
 use ssi_security::MultibaseBuf;
 use ssi_verification_methods_core::{
-    MaybeJwkVerificationMethod, SigningMethod, VerificationMethodSet, VerifyBytes,
+    MaybeJwkVerificationMethod, VerificationMethodSet, VerifyBytes,
 };
 use static_iref::iri;
 use std::{borrow::Cow, hash::Hash, str::FromStr, sync::OnceLock};
@@ -99,44 +98,12 @@ impl Multikey {
         self.public_key.decode().ok()?.to_jwk()
     }
 
-    #[cfg(feature = "ed25519")]
-    pub fn generate_ed25519_key_pair(
-        id: IriBuf,
-        controller: UriBuf,
-        csprng: &mut (impl rand_core::RngCore + rand_core::CryptoRng),
-    ) -> (Self, ed25519_dalek::SigningKey) {
-        let key = ed25519_dalek::SigningKey::generate(csprng);
-        (
-            Self::from_public_key(id, controller, &key.verifying_key()),
-            key,
-        )
-    }
-
     pub fn from_public_key<K: MultiCodec>(id: IriBuf, controller: UriBuf, public_key: &K) -> Self {
         Self {
             id,
             controller,
             public_key: PublicKey::new(public_key),
         }
-    }
-}
-
-pub enum SecretKeyRef<'a> {
-    #[cfg(feature = "ed25519")]
-    Ed25519(&'a ed25519_dalek::SigningKey),
-    Jwk(&'a JWK),
-}
-
-#[cfg(feature = "ed25519")]
-impl<'a> From<&'a ed25519_dalek::SigningKey> for SecretKeyRef<'a> {
-    fn from(value: &'a ed25519_dalek::SigningKey) -> Self {
-        Self::Ed25519(value)
-    }
-}
-
-impl<'a> From<&'a JWK> for SecretKeyRef<'a> {
-    fn from(value: &'a JWK) -> Self {
-        Self::Jwk(value)
     }
 }
 
@@ -172,83 +139,6 @@ impl<A: Into<ssi_jwk::Algorithm>> VerifyBytes<A> for Multikey {
             ssi_jws::verify_bytes(algorithm.into(), signing_bytes, &key, signature)
                 .map_err(|_| InvalidProof::Signature),
         )
-    }
-}
-
-impl<A: SignatureAlgorithmType> SigningMethod<JWK, A> for Multikey
-where
-    A::Instance: Into<ssi_crypto::AlgorithmInstance>,
-{
-    fn sign_bytes(
-        &self,
-        secret: &JWK,
-        algorithm: A::Instance,
-        bytes: &[u8],
-    ) -> Result<Vec<u8>, MessageSignatureError> {
-        ssi_jws::sign_bytes(algorithm.into().try_into()?, bytes, secret)
-            .map_err(MessageSignatureError::signature_failed)
-    }
-
-    #[allow(unused_variables)]
-    fn sign_bytes_multi(
-        &self,
-        secret: &JWK,
-        algorithm: A::Instance,
-        messages: &[Vec<u8>],
-    ) -> Result<Vec<u8>, MessageSignatureError> {
-        match algorithm.into() {
-            #[cfg(feature = "bbs")]
-            ssi_crypto::AlgorithmInstance::Bbs(bbs_algorithm) => {
-                let secret: ssi_bbs::BBSplusSecretKey = secret
-                    .try_into()
-                    .map_err(|_| MessageSignatureError::InvalidSecretKey)?;
-                self.sign_bytes_multi(&secret, bbs_algorithm, messages)
-            }
-            other => Err(MessageSignatureError::UnsupportedAlgorithm(
-                other.algorithm().to_string(),
-            )),
-        }
-    }
-}
-
-#[cfg(feature = "ed25519")]
-impl SigningMethod<ed25519_dalek::SigningKey, ssi_crypto::algorithm::EdDSA> for Multikey {
-    fn sign_bytes(
-        &self,
-        secret: &ed25519_dalek::SigningKey,
-        _algorithm: ssi_crypto::algorithm::EdDSA,
-        bytes: &[u8],
-    ) -> Result<Vec<u8>, MessageSignatureError> {
-        use ed25519_dalek::Signer;
-        let signature = secret.sign(bytes);
-        Ok(signature.to_bytes().to_vec())
-    }
-}
-
-#[cfg(feature = "bbs")]
-impl SigningMethod<ssi_bbs::BBSplusSecretKey, ssi_crypto::algorithm::Bbs> for Multikey {
-    fn sign_bytes(
-        &self,
-        secret: &ssi_bbs::BBSplusSecretKey,
-        algorithm: ssi_crypto::algorithm::BbsInstance,
-        bytes: &[u8],
-    ) -> Result<Vec<u8>, MessageSignatureError> {
-        self.sign_bytes_multi(secret, algorithm, &[bytes.to_vec()])
-    }
-
-    fn sign_bytes_multi(
-        &self,
-        secret: &ssi_bbs::BBSplusSecretKey,
-        algorithm: ssi_crypto::algorithm::BbsInstance,
-        messages: &[Vec<u8>],
-    ) -> Result<Vec<u8>, MessageSignatureError> {
-        #[allow(irrefutable_let_patterns)]
-        let DecodedMultikey::Bls12_381(pk) = self.public_key.decode()?
-        else {
-            return Err(MessageSignatureError::InvalidPublicKey);
-        };
-
-        ssi_bbs::sign(*algorithm.0, secret, pk, messages)
     }
 }
 
@@ -513,39 +403,4 @@ impl MultiCodec for DecodedMultikey {
             _ => unreachable!(), // references are always considered inhabited.
         }
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MultikeyPair {
-    #[serde(rename = "publicKeyMultibase")]
-    pub public: MultibaseBuf,
-
-    #[serde(rename = "secretKeyMultibase")]
-    pub secret: MultibaseBuf,
-}
-
-impl MultikeyPair {
-    pub fn public_jwk(&self) -> Result<JWK, ToJWKError> {
-        let (_, decoded) = self.public.decode()?;
-        let multi_encoded = MultiEncodedBuf::new(decoded)?;
-        JWK::from_multicodec(&multi_encoded).map_err(Into::into)
-    }
-
-    pub fn secret_jwk(&self) -> Result<JWK, ToJWKError> {
-        let (_, decoded) = self.secret.decode()?;
-        let multi_encoded = MultiEncodedBuf::new(decoded)?;
-        JWK::from_multicodec(&multi_encoded).map_err(Into::into)
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum ToJWKError {
-    #[error(transparent)]
-    Multibase(#[from] multibase::Error),
-
-    #[error(transparent)]
-    MultiCodec(#[from] ssi_multicodec::Error),
-
-    #[error(transparent)]
-    JWK(#[from] ssi_jwk::FromMulticodecError),
 }

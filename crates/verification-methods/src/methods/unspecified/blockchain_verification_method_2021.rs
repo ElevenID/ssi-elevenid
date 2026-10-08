@@ -2,7 +2,7 @@ use std::hash::Hash;
 
 use iref::{Iri, IriBuf, UriBuf};
 use serde::{Deserialize, Serialize};
-use ssi_claims_core::{MessageSignatureError, ProofValidationError};
+use ssi_claims_core::ProofValidationError;
 use ssi_jwk::JWK;
 use ssi_verification_methods_core::VerificationMethodSet;
 use static_iref::iri;
@@ -68,15 +68,6 @@ impl BlockchainVerificationMethod2021 {
             },
             None => Err(ProofValidationError::MissingPublicKey),
         }
-    }
-
-    pub fn sign_bytes(
-        &self,
-        key: &JWK,
-        algorithm: ssi_jwk::Algorithm,
-        bytes: &[u8],
-    ) -> Result<Vec<u8>, MessageSignatureError> {
-        ssi_jws::sign_bytes(algorithm, bytes, key).map_err(MessageSignatureError::signature_failed)
     }
 }
 

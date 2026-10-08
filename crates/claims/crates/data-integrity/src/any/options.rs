@@ -120,6 +120,8 @@ impl TryFrom<AnyInputSuiteOptions> for ssi_data_integrity_suites::tezos::Options
 
 #[cfg(feature = "tezos")]
 impl From<ssi_data_integrity_suites::tezos::Options> for AnyInputSuiteOptions {
+    // Other fields exist when EIP-712 is enabled alongside Tezos.
+    #[allow(clippy::needless_update)]
     fn from(value: ssi_data_integrity_suites::tezos::Options) -> Self {
         Self {
             public_key_jwk: Some(value.public_key_jwk),
@@ -141,6 +143,8 @@ impl TryFrom<AnyInputSuiteOptions> for ssi_data_integrity_suites::tezos_signatur
 
 #[cfg(feature = "tezos")]
 impl From<ssi_data_integrity_suites::tezos_signature_2021::Options> for AnyInputSuiteOptions {
+    // Other fields exist when EIP-712 is enabled alongside Tezos.
+    #[allow(clippy::needless_update)]
     fn from(value: ssi_data_integrity_suites::tezos_signature_2021::Options) -> Self {
         Self {
             public_key_jwk: value.public_key_jwk,
@@ -171,6 +175,8 @@ impl TryFrom<AnyInputSuiteOptions>
 impl From<ssi_data_integrity_suites::tezos::tezos_jcs_signature_2021::Options>
     for AnyInputSuiteOptions
 {
+    // Other fields exist when EIP-712 is enabled alongside Tezos.
+    #[allow(clippy::needless_update)]
     fn from(value: ssi_data_integrity_suites::tezos::tezos_jcs_signature_2021::Options) -> Self {
         Self {
             public_key_jwk: value

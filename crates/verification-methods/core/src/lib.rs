@@ -1,8 +1,7 @@
-use std::{borrow::Cow, collections::HashMap, sync::Arc};
+use std::{borrow::Cow, collections::HashMap};
 
 use iref::{Iri, IriBuf};
-use ssi_claims_core::{MessageSignatureError, ProofValidationError, SignatureError};
-use ssi_crypto::algorithm::SignatureAlgorithmType;
+use ssi_claims_core::{ProofValidationError, SignatureError};
 use ssi_jwk::JWK;
 use static_iref::iri;
 
@@ -185,61 +184,6 @@ impl<M: VerificationMethod> VerificationMethodResolver for HashMap<IriBuf, M> {
             },
             None => Err(VerificationMethodResolutionError::MissingVerificationMethod),
         }
-    }
-}
-
-pub trait SigningMethod<S, A: SignatureAlgorithmType>: VerificationMethod {
-    fn sign_bytes(
-        &self,
-        secret: &S,
-        algorithm: A::Instance,
-        bytes: &[u8],
-    ) -> Result<Vec<u8>, MessageSignatureError>;
-
-    fn sign_bytes_multi(
-        &self,
-        secret: &S,
-        algorithm: A::Instance,
-        messages: &[Vec<u8>],
-    ) -> Result<Vec<u8>, MessageSignatureError> {
-        match messages.split_first() {
-            Some((message, [])) => self.sign_bytes(secret, algorithm, message),
-            // Some(_) => Err(MessageSignatureError::TooManyMessages),
-            Some(_) => todo!(),
-            None => Err(MessageSignatureError::MissingMessage),
-        }
-    }
-}
-
-pub struct MethodWithSecret<M: VerificationMethod, S> {
-    pub method: M,
-    pub secret: Arc<S>,
-}
-
-impl<M: VerificationMethod, S> MethodWithSecret<M, S> {
-    pub fn new(method: M, secret: Arc<S>) -> Self {
-        Self { method, secret }
-    }
-}
-
-impl<A: SignatureAlgorithmType, M: SigningMethod<S, A>, S> MessageSigner<A>
-    for MethodWithSecret<M, S>
-{
-    async fn sign(
-        self,
-        algorithm: A::Instance,
-        message: &[u8],
-    ) -> Result<Vec<u8>, MessageSignatureError> {
-        self.method.sign_bytes(&self.secret, algorithm, message)
-    }
-
-    async fn sign_multi(
-        self,
-        algorithm: <A as SignatureAlgorithmType>::Instance,
-        messages: &[Vec<u8>],
-    ) -> Result<Vec<u8>, MessageSignatureError> {
-        self.method
-            .sign_bytes_multi(&self.secret, algorithm, messages)
     }
 }
 

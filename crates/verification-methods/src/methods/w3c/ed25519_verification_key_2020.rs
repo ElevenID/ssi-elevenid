@@ -1,11 +1,10 @@
 use std::{borrow::Cow, hash::Hash, str::FromStr};
 
-use ed25519_dalek::{Signer, Verifier};
+use ed25519_dalek::Verifier;
 use iref::{Iri, IriBuf, UriBuf};
-use rand_core::{CryptoRng, RngCore};
 use rdf_types::{Interpretation, Vocabulary};
 use serde::{Deserialize, Serialize};
-use ssi_claims_core::{InvalidProof, MessageSignatureError, ProofValidationError, ProofValidity};
+use ssi_claims_core::{InvalidProof, ProofValidationError, ProofValidity};
 use ssi_jwk::JWK;
 use ssi_multicodec::MultiEncodedBuf;
 use ssi_security::{Multibase, MultibaseBuf};
@@ -13,8 +12,8 @@ use ssi_verification_methods_core::{JwkVerificationMethod, VerificationMethodSet
 use static_iref::iri;
 
 use crate::{
-    ExpectedType, GenericVerificationMethod, InvalidVerificationMethod, SigningMethod,
-    TypedVerificationMethod, VerificationMethod,
+    ExpectedType, GenericVerificationMethod, InvalidVerificationMethod, TypedVerificationMethod,
+    VerificationMethod,
 };
 
 /// Ed25519 Verification Key 2020 type name.
@@ -69,18 +68,6 @@ impl Ed25519VerificationKey2020 {
         self.public_key.to_jwk()
     }
 
-    pub fn generate_key_pair(
-        id: IriBuf,
-        controller: UriBuf,
-        csprng: &mut (impl RngCore + CryptoRng),
-    ) -> (Self, ed25519_dalek::SigningKey) {
-        let key = ed25519_dalek::SigningKey::generate(csprng);
-        (
-            Self::from_public_key(id, controller, key.verifying_key()),
-            key,
-        )
-    }
-
     pub fn from_public_key(
         id: IriBuf,
         controller: UriBuf,
@@ -93,34 +80,6 @@ impl Ed25519VerificationKey2020 {
         }
     }
 
-    // pub fn sign_bytes(&self, data: &[u8], key_pair: &ed25519_dalek::Keypair) -> Vec<u8> {
-    //     let signature = key_pair.sign(data);
-    //     signature.to_bytes().to_vec()
-    // }
-
-    pub fn sign_bytes<'a>(
-        &self,
-        secret_key: impl Into<SecretKeyRef<'a>>,
-        signing_bytes: &[u8],
-    ) -> Result<Vec<u8>, MessageSignatureError> {
-        match secret_key.into() {
-            SecretKeyRef::Ed25519(key_pair) => {
-                let signature = key_pair.sign(signing_bytes);
-                Ok(signature.to_bytes().to_vec())
-            }
-            SecretKeyRef::Jwk(secret_key) => {
-                let algorithm = ssi_jwk::Algorithm::EdDSA;
-                let key_algorithm = secret_key.algorithm.unwrap_or(algorithm);
-                if !algorithm.is_compatible_with(key_algorithm) {
-                    return Err(MessageSignatureError::InvalidSecretKey);
-                }
-
-                ssi_jws::sign_bytes(algorithm, signing_bytes, secret_key)
-                    .map_err(|_| MessageSignatureError::InvalidSecretKey)
-            }
-        }
-    }
-
     pub fn verify_bytes(
         &self,
         data: &[u8],
@@ -129,23 +88,6 @@ impl Ed25519VerificationKey2020 {
         let signature = ed25519_dalek::Signature::try_from(signature_bytes)
             .map_err(|_| ProofValidationError::InvalidSignature)?;
         Ok(self.public_key.verify(data, &signature))
-    }
-}
-
-pub enum SecretKeyRef<'a> {
-    Ed25519(&'a ed25519_dalek::SigningKey),
-    Jwk(&'a JWK),
-}
-
-impl<'a> From<&'a ed25519_dalek::SigningKey> for SecretKeyRef<'a> {
-    fn from(value: &'a ed25519_dalek::SigningKey) -> Self {
-        Self::Ed25519(value)
-    }
-}
-
-impl<'a> From<&'a JWK> for SecretKeyRef<'a> {
-    fn from(value: &'a JWK) -> Self {
-        Self::Jwk(value)
     }
 }
 
@@ -184,30 +126,6 @@ impl TypedVerificationMethod for Ed25519VerificationKey2020 {
 impl JwkVerificationMethod for Ed25519VerificationKey2020 {
     fn to_jwk(&'_ self) -> Cow<'_, JWK> {
         Cow::Owned(self.public_key_jwk())
-    }
-}
-
-impl SigningMethod<ed25519_dalek::SigningKey, ssi_crypto::algorithm::EdDSA>
-    for Ed25519VerificationKey2020
-{
-    fn sign_bytes(
-        &self,
-        secret: &ed25519_dalek::SigningKey,
-        _algorithm: ssi_crypto::algorithm::EdDSA,
-        message: &[u8],
-    ) -> Result<Vec<u8>, MessageSignatureError> {
-        self.sign_bytes(secret, message)
-    }
-}
-
-impl SigningMethod<JWK, ssi_crypto::algorithm::EdDSA> for Ed25519VerificationKey2020 {
-    fn sign_bytes(
-        &self,
-        secret_key: &JWK,
-        _algorithm: ssi_crypto::algorithm::EdDSA,
-        message: &[u8],
-    ) -> Result<Vec<u8>, MessageSignatureError> {
-        self.sign_bytes(secret_key, message)
     }
 }
 

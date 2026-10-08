@@ -12,7 +12,6 @@ pub fn jwk_to_tezos_key(jwk: &JWK) -> Result<String, JwsError> {
     let (prefix, bytes) = match &jwk.params {
         Params::OKP(okp_params) if okp_params.curve == "Ed25519" => {
             if let Some(ref _sk) = okp_params.private_key {
-                // TODO: edsk
                 return Err(JwsError::UnsupportedAlgorithm(
                     jwk.algorithm
                         .as_ref()
@@ -24,7 +23,6 @@ pub fn jwk_to_tezos_key(jwk: &JWK) -> Result<String, JwsError> {
         }
         Params::EC(ec_params) if ec_params.curve == Some("secp256k1".to_string()) => {
             if let Some(ref _sk) = ec_params.ecc_private_key {
-                // TODO: spsk
                 return Err(JwsError::UnsupportedAlgorithm(
                     jwk.algorithm
                         .as_ref()
@@ -33,7 +31,6 @@ pub fn jwk_to_tezos_key(jwk: &JWK) -> Result<String, JwsError> {
                 ));
             }
             {
-                // TODO: p2sk
                 bytes = ssi_jwk::serialize_secp256k1(ec_params)?;
                 (SPPK_PREFIX, &bytes)
             }
@@ -93,23 +90,6 @@ pub fn jwk_from_tezos_key(tz_pk: &str) -> Result<JWK, DecodeTezosPkError> {
                 private_key: None,
             }),
         ),
-        Some("edsk") => {
-            let sk_bytes = bs58::decode(&tz_pk).with_check(None).into_vec()?[4..].to_owned();
-            let pk_bytes;
-            {
-                let sk = ed25519_dalek::SigningKey::try_from(sk_bytes.as_slice())
-                    .map_err(ssi_jwk::Error::from)?;
-                pk_bytes = ed25519_dalek::VerifyingKey::from(&sk).as_bytes().to_vec()
-            }
-            (
-                Algorithm::EdBlake2b,
-                Params::OKP(OctetParams {
-                    curve: "Ed25519".into(),
-                    public_key: Base64urlUInt(pk_bytes),
-                    private_key: Some(Base64urlUInt(sk_bytes)),
-                }),
-            )
-        }
         Some("sppk") => {
             let pk_bytes = bs58::decode(&tz_pk).with_check(None).into_vec()?[4..].to_owned();
             let jwk = ssi_jwk::secp256k1_parse(&pk_bytes)?;
@@ -120,7 +100,6 @@ pub fn jwk_from_tezos_key(tz_pk: &str) -> Result<JWK, DecodeTezosPkError> {
             let jwk = ssi_jwk::p256_parse(&pk_bytes)?;
             (Algorithm::ESBlake2b, jwk.params)
         }
-        // TODO: more secret keys
         _ => return Err(DecodeTezosPkError::KeyPrefix),
     };
     Ok(JWK {
@@ -134,33 +113,6 @@ pub fn jwk_from_tezos_key(tz_pk: &str) -> Result<JWK, DecodeTezosPkError> {
         x509_thumbprint_sha256: None,
         params,
     })
-}
-
-#[derive(thiserror::Error, Debug)]
-pub enum SignTezosError {
-    #[error("Unsupported algorithm for Tezos signing: {0:?}")]
-    UnsupportedAlgorithm(Algorithm),
-    #[error("Signing: {0}")]
-    Sign(String),
-}
-
-pub fn sign_tezos(data: &[u8], algorithm: Algorithm, key: &JWK) -> Result<String, SignTezosError> {
-    let sig = ssi_jws::sign_bytes(algorithm, data, key)
-        .map_err(|e| SignTezosError::Sign(e.to_string()))?;
-    let mut sig_prefixed = Vec::new();
-    const EDSIG_PREFIX: [u8; 5] = [9, 245, 205, 134, 18];
-    const SPSIG_PREFIX: [u8; 5] = [13, 115, 101, 19, 63];
-    const P2SIG_PREFIX: [u8; 4] = [54, 240, 44, 52];
-    let prefix: &[u8] = match algorithm {
-        Algorithm::EdBlake2b => &EDSIG_PREFIX,
-        Algorithm::ESBlake2bK => &SPSIG_PREFIX,
-        Algorithm::ESBlake2b => &P2SIG_PREFIX,
-        alg => return Err(SignTezosError::UnsupportedAlgorithm(alg)),
-    };
-    sig_prefixed.extend_from_slice(prefix);
-    sig_prefixed.extend_from_slice(&sig);
-    let sig_bs58 = bs58::encode(sig_prefixed).with_check().into_string();
-    Ok(sig_bs58)
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -234,6 +186,14 @@ mod tests {
     }
 
     #[test]
+    fn secret_key_prefix_is_rejected() {
+        assert!(matches!(
+            jwk_from_tezos_key("edsk"),
+            Err(DecodeTezosPkError::KeyPrefix)
+        ));
+    }
+
+    #[test]
     fn edpk_jwk_tz_edsig() {
         let tzpk = "edpkuxZ5AQVCeEJ9inUG3w6VFhio5KBwC22ekPLBzcvub3QY2DvJ7n";
         let jwk = jwk_from_tezos_key(tzpk).unwrap();
@@ -297,40 +257,43 @@ mod tests {
     }
 
     #[test]
-    fn edsk_sign() {
+    fn ed25519_public_signature_verifies() {
         let mut key: JWK =
-            serde_json::from_str(include_str!("../../../tests/ed25519-2020-10-18.json")).unwrap();
+            serde_json::from_str(include_str!("../../../tests/public_keys/ed25519.json")).unwrap();
         key.algorithm = Some(Algorithm::EdBlake2b);
-        eprintln!("key: {:?}", key);
         let hash = hash_public_key(&key).unwrap();
         assert_eq!(hash, "tz1NcJyMQzUw7h85baBA6vwRGmpwPnM1fz83");
-        let tsm = encode_tezos_signed_message("example.org 2021-05-26T18:28:26Z Signed with ssi")
-            .unwrap();
-        eprintln!("msg: {:?}", tsm);
-        let sig = sign_tezos(&tsm, Algorithm::EdBlake2b, &key).unwrap();
+        let mut tsm =
+            encode_tezos_signed_message("example.org 2021-05-26T18:28:26Z Signed with ssi")
+                .unwrap();
         let sig_expected = "edsigtvvyq6uFWyeoSNZq4Jq2AvsNGZ9hHYDgt4Hzdou4FVkaBLX34tWRyL9MsapFBg3RFXReJ4bNCaAg2F1XWAMgetCLU9AACo";
-        assert_eq!(sig, sig_expected);
+        let (algorithm, signature) = decode_tzsig(sig_expected).unwrap();
+        assert_eq!(algorithm, Algorithm::EdBlake2b);
+        ssi_jws::verify_bytes(algorithm, &tsm, &key, &signature).unwrap();
+        tsm[1] ^= 1;
+        ssi_jws::verify_bytes(algorithm, &tsm, &key, &signature).unwrap_err();
     }
 
     #[test]
-    fn spsk_sign() {
+    fn secp256k1_public_signature_verifies() {
         let key: JWK = serde_json::from_value(json!({
             "alg": "ESBlake2bK",
             "kty": "EC",
             "crv": "secp256k1",
             "x": "yclqMZ0MtyVkKm1eBh2AyaUtsqT0l5RJM3g4SzRT96A",
-            "y": "yQzUwKnftWCJPGs-faGaHiYi1sxA6fGJVw2Px_LCNe8",
-            "d": "meTmccmR_6ZsOa2YuTTkKkJ4ZPYsKdAH1Wx_RRf2j_E"
+            "y": "yQzUwKnftWCJPGs-faGaHiYi1sxA6fGJVw2Px_LCNe8"
         }))
         .unwrap();
-        eprintln!("key {:?}", key);
         let hash = hash_public_key(&key).unwrap();
         assert_eq!(hash, "tz2CA2f3SWWcqbWsjHsMZPZxCY5iafSN3nDz");
-        let tsm = encode_tezos_signed_message("example.org 2021-05-26T17:01:41Z Signed with ssi")
-            .unwrap();
-        eprintln!("msg: {:x?}", tsm);
-        let sig = sign_tezos(&tsm, Algorithm::ESBlake2bK, &key).unwrap();
+        let mut tsm =
+            encode_tezos_signed_message("example.org 2021-05-26T17:01:41Z Signed with ssi")
+                .unwrap();
         let sig_expected = "spsig1NRgjYaq8jeaWTMPUSsxkawWUzW1C3RoMfczWY2JAZSkNQQGM9QvCkxtRMcauJRaSUNcKgkj6WfpzLh1upXwjcfLh4wqqX";
-        assert_eq!(sig, sig_expected);
+        let (algorithm, signature) = decode_tzsig(sig_expected).unwrap();
+        assert_eq!(algorithm, Algorithm::ESBlake2bK);
+        ssi_jws::verify_bytes(algorithm, &tsm, &key, &signature).unwrap();
+        tsm[1] ^= 1;
+        ssi_jws::verify_bytes(algorithm, &tsm, &key, &signature).unwrap_err();
     }
 }

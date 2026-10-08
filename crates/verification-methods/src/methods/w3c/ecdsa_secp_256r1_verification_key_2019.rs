@@ -1,7 +1,7 @@
 use iref::{Iri, IriBuf, UriBuf};
 use rdf_types::{Interpretation, Vocabulary};
 use serde::{Deserialize, Serialize};
-use ssi_claims_core::{InvalidProof, MessageSignatureError, ProofValidationError, ProofValidity};
+use ssi_claims_core::{InvalidProof, ProofValidationError, ProofValidity};
 use ssi_jwk::JWK;
 use ssi_multicodec::MultiEncodedBuf;
 use ssi_security::{Multibase, MultibaseBuf};
@@ -68,23 +68,6 @@ pub struct EcdsaSecp256r1VerificationKey2019 {
     pub public_key: PublicKey,
 }
 
-pub enum SecretKeyRef<'a> {
-    P256(&'a p256::SecretKey),
-    Jwk(&'a JWK),
-}
-
-impl<'a> From<&'a p256::SecretKey> for SecretKeyRef<'a> {
-    fn from(value: &'a p256::SecretKey) -> Self {
-        Self::P256(value)
-    }
-}
-
-impl<'a> From<&'a JWK> for SecretKeyRef<'a> {
-    fn from(value: &'a JWK) -> Self {
-        Self::Jwk(value)
-    }
-}
-
 impl EcdsaSecp256r1VerificationKey2019 {
     pub const NAME: &'static str = ECDSA_SECP_256R1_VERIFICATION_KEY_2019_TYPE;
     pub const IRI: &'static Iri =
@@ -100,33 +83,6 @@ impl EcdsaSecp256r1VerificationKey2019 {
 
     pub fn public_key_jwk(&self) -> JWK {
         self.public_key.to_jwk()
-    }
-
-    pub fn sign_bytes<'a>(
-        &self,
-        secret_key: impl Into<SecretKeyRef<'a>>,
-        signing_bytes: &[u8],
-    ) -> Result<Vec<u8>, MessageSignatureError> {
-        use p256::ecdsa::signature::Signer;
-
-        match secret_key.into() {
-            SecretKeyRef::P256(secret_key) => {
-                let signing_key = p256::ecdsa::SigningKey::from(secret_key);
-                let signature: p256::ecdsa::Signature =
-                    signing_key.try_sign(signing_bytes).unwrap();
-                Ok(signature.to_bytes().to_vec())
-            }
-            SecretKeyRef::Jwk(secret_key) => {
-                let algorithm = ssi_jwk::Algorithm::ES256;
-                let key_algorithm = secret_key.algorithm.unwrap_or(algorithm);
-                if !algorithm.is_compatible_with(key_algorithm) {
-                    return Err(MessageSignatureError::InvalidSecretKey);
-                }
-
-                ssi_jws::sign_bytes(algorithm, signing_bytes, secret_key)
-                    .map_err(|_| MessageSignatureError::InvalidSecretKey)
-            }
-        }
     }
 
     pub fn verify_bytes(

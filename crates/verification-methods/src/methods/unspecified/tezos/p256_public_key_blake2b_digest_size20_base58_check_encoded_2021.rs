@@ -2,14 +2,14 @@ use std::hash::Hash;
 
 use iref::{Iri, IriBuf, UriBuf};
 use serde::{Deserialize, Serialize};
-use ssi_claims_core::{InvalidProof, MessageSignatureError, ProofValidationError, ProofValidity};
-use ssi_jwk::{Algorithm, JWK};
+use ssi_claims_core::{InvalidProof, ProofValidationError, ProofValidity};
+use ssi_jwk::JWK;
 use ssi_verification_methods_core::{VerificationMethodSet, VerifyBytesWithRecoveryJwk};
 use static_iref::iri;
 
 use crate::{
-    ExpectedType, GenericVerificationMethod, InvalidVerificationMethod, SigningMethod,
-    TypedVerificationMethod, VerificationMethod,
+    ExpectedType, GenericVerificationMethod, InvalidVerificationMethod, TypedVerificationMethod,
+    VerificationMethod,
 };
 
 pub const P256_PUBLIC_KEY_BLAKE2B_DIGEST_SIZE20_BASE58_CHECK_ENCODED_2021_TYPE: &str =
@@ -155,19 +155,5 @@ impl TryFrom<GenericVerificationMethod> for P256PublicKeyBLAKE2BDigestSize20Base
                 P256_PUBLIC_KEY_BLAKE2B_DIGEST_SIZE20_BASE58_CHECK_ENCODED_2021_TYPE,
             ))
         }
-    }
-}
-
-impl SigningMethod<JWK, ssi_crypto::algorithm::ESBlake2b>
-    for P256PublicKeyBLAKE2BDigestSize20Base58CheckEncoded2021
-{
-    fn sign_bytes(
-        &self,
-        key: &JWK,
-        _algorithm: ssi_crypto::algorithm::ESBlake2b,
-        bytes: &[u8],
-    ) -> Result<Vec<u8>, MessageSignatureError> {
-        ssi_jws::sign_bytes(Algorithm::ESBlake2b, bytes, key)
-            .map_err(MessageSignatureError::signature_failed)
     }
 }

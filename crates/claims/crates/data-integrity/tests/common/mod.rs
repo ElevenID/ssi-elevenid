@@ -18,7 +18,7 @@ pub use verification::*;
 #[serde(tag = "type")]
 pub enum Test {
     #[serde(rename = "SignatureTest")]
-    Signature(SignatureTest),
+    Signature(Box<SignatureTest>),
 
     #[serde(rename = "SelectionTest")]
     Selection(SelectionTest),

@@ -12,16 +12,16 @@ documentation = "https://docs.rs/ssi-jwk/"
 default = ["secp256k1", "secp256r1", "ed25519", "rsa", "eip", "ripemd-160"]
 
 ## Enable secp256k1 keys.
-secp256k1 = ["k256", "rand", "getrandom", "ssi-crypto/secp256k1"]
+secp256k1 = ["k256", "ssi-crypto/secp256k1"]
 
 ## Enable secp256r1 (p256) keys.
-secp256r1 = ["p256", "rand", "getrandom"]
+secp256r1 = ["p256"]
 
 ## Enable secp384r1 (p384) keys.
-secp384r1 = ["p384", "rand", "getrandom"]
+secp384r1 = ["p384"]
 
 ## Enable ed25519 (EdDSA) keys.
-ed25519 = ["ed25519-dalek", "rand", "getrandom"]
+ed25519 = ["ed25519-dalek"]
 
 ## Enable RSA keys.
 rsa = ["dep:rsa"]
@@ -30,14 +30,12 @@ rsa = ["dep:rsa"]
 ##
 ## Not compatible with WASM targets.
 aleo = [
-    "rand",
     "blake2",
     "snarkvm-dpc",
     "snarkvm-algorithms",
     "snarkvm-curves",
     "snarkvm-utilities",
     "snarkvm-parameters",
-    "bs58",
 ]
 
 ## enable ripemd-160 hashing for keys, e.g. for bitcoin.
@@ -51,7 +49,7 @@ tezos = ["blake2b_simd", "secp256k1", "secp256r1", "bs58"]
 
 ring = ["dep:ring"]
 
-bbs = ["ssi-bbs", "rand"]
+bbs = ["ssi-bbs"]
 
 [dependencies]
 ssi-claims-core.workspace = true
@@ -69,8 +67,7 @@ p256 = { workspace = true, optional = true, features = ["ecdsa"] }
 p384 = { workspace = true, optional = true, features = ["ecdsa"] }
 ring = { version = "0.17.14", optional = true }
 rsa = { workspace = true, optional = true }
-rand = { workspace = true, optional = true }
-ed25519-dalek = { workspace = true, optional = true, features = ["rand_core"] }
+ed25519-dalek = { workspace = true, optional = true }
 lazy_static = "1.4"
 bs58 = { workspace = true, features = ["check"], optional = true }
 ssi-bbs = { workspace = true, optional = true }
@@ -92,9 +89,6 @@ snarkvm-algorithms = { version = "0.7.9", optional = true }
 snarkvm-curves = { version = "0.7.9", optional = true }
 snarkvm-utilities = { version = "0.7.9", optional = true }
 snarkvm-parameters = { version = "0.7.9", optional = true }
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-getrandom = { workspace = true, features = ["js"], optional = true }
 
 [dev-dependencies]
 hex.workspace = true

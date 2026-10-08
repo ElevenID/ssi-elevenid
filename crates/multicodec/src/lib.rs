@@ -23,11 +23,10 @@ pub struct MultiEncoded([u8]);
 impl MultiEncoded {
     /// Creates a new multi-encoded slice from the given `bytes`.
     ///
-    /// Following the [`unsigned-varint`] specification and to avoid memory
-    /// attacks, the coded must be encoded on at most 9 bytes (63 bits unsigned
+    /// Following the [`unsigned-varint`](https://github.com/multiformats/unsigned-varint)
+    /// specification, the codec must use at most 9 bytes (63 bits unsigned
     /// varint).
     ///
-    /// [`unsigned-varint`](https://github.com/multiformats/unsigned-varint)
     #[inline(always)]
     pub fn new(bytes: &[u8]) -> Result<&Self, Error> {
         unsigned_varint::decode::u64(bytes)?;
@@ -39,11 +38,10 @@ impl MultiEncoded {
     ///
     /// # Safety
     ///
-    /// Following the [`unsigned-varint`] specification and to avoid memory
-    /// attacks, the coded must be encoded on at most 9 bytes (63 bits unsigned
+    /// Following the [`unsigned-varint`](https://github.com/multiformats/unsigned-varint)
+    /// specification, the codec must use at most 9 bytes (63 bits unsigned
     /// varint).
     ///
-    /// [`unsigned-varint`](https://github.com/multiformats/unsigned-varint)
     #[inline(always)]
     pub unsafe fn new_unchecked(bytes: &[u8]) -> &Self {
         unsafe { std::mem::transmute(bytes) }
@@ -88,11 +86,10 @@ pub struct MultiEncodedBuf(Vec<u8>);
 impl MultiEncodedBuf {
     /// Creates a new multi-encoded slice from the given `bytes`.
     ///
-    /// Following the [`unsigned-varint`] specification and to avoid memory
-    /// attacks, the coded must be encoded on at most 9 bytes (63 bits unsigned
+    /// Following the [`unsigned-varint`](https://github.com/multiformats/unsigned-varint)
+    /// specification, the codec must use at most 9 bytes (63 bits unsigned
     /// varint).
     ///
-    /// [`unsigned-varint`](https://github.com/multiformats/unsigned-varint)
     #[inline(always)]
     pub fn new(bytes: Vec<u8>) -> Result<Self, Error> {
         unsigned_varint::decode::u64(&bytes)?;
@@ -118,11 +115,10 @@ impl MultiEncodedBuf {
     ///
     /// # Safety
     ///
-    /// Following the [`unsigned-varint`] specification and to avoid memory
-    /// attacks, the coded must be encoded on at most 9 bytes (63 bits unsigned
+    /// Following the [`unsigned-varint`](https://github.com/multiformats/unsigned-varint)
+    /// specification, the codec must use at most 9 bytes (63 bits unsigned
     /// varint).
     ///
-    /// [`unsigned-varint`](https://github.com/multiformats/unsigned-varint)
     #[inline(always)]
     pub unsafe fn new_unchecked(bytes: Vec<u8>) -> Self {
         Self(bytes)

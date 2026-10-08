@@ -4,7 +4,7 @@ use ssi_data_integrity_core::{
     ProofConfiguration, ProofOptions,
 };
 use ssi_di_sd_primitives::HmacShaAnyKey;
-use ssi_verification_methods::{multikey::MultikeyPair, Multikey};
+use ssi_verification_methods::Multikey;
 
 use crate::EcdsaSd2023;
 
@@ -15,8 +15,6 @@ pub struct SignatureOptions {
     pub mandatory_pointers: Vec<JsonPointerBuf>,
 
     pub hmac_key: Option<HmacShaAnyKey>,
-
-    pub key_pair: Option<MultikeyPair>,
 }
 
 pub struct ConfigurationAlgorithm;

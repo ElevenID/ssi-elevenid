@@ -153,13 +153,13 @@
 //! The [`AnyDidMethod`] regroups all those methods into one [`DIDResolver`]
 //! implementation.
 //!
-//! DID method types can also be used to generate fresh DID URLs:
+//! DID method types can also derive DID URLs from public keys:
 //! ```
 //! use ssi_jwk::JWK;
 //! use ssi_dids::DIDJWK;
 //!
-//! /// Generate a new JWK.
-//! let jwk = JWK::generate_p256();
+//! // Public P-256 JWK supplied by a remote key provider.
+//! let jwk: JWK = serde_json::from_str(r#"{"kty":"EC","crv":"P-256","x":"OnI8cxizlWZUBw5icIHEUn5EVMpcz4bNr__HnrmYGrE","y":"IB3NJQlX9rCu0yyAYSm0k-Vk1NlNkkEcRUZLwZHnuGc"}"#).unwrap();
 //!
 //! /// Generate a DID URL out of our JWK URL.
 //! let did_url = DIDJWK::generate_url(&jwk);
@@ -269,8 +269,8 @@ impl AnyDidMethod {
     /// // Create a DID resolver.
     /// let resolver = AnyDidMethod::default();
     ///
-    /// // Create a JWK.
-    /// let jwk = JWK::generate_p256();
+    /// // Public P-256 JWK supplied by a remote key provider.
+    /// let jwk: JWK = serde_json::from_str(r#"{"kty":"EC","crv":"P-256","x":"OnI8cxizlWZUBw5icIHEUn5EVMpcz4bNr__HnrmYGrE","y":"IB3NJQlX9rCu0yyAYSm0k-Vk1NlNkkEcRUZLwZHnuGc"}"#).unwrap();
     ///
     /// // Generate a `did:jwk` DID for this JWK:
     /// let did = resolver.generate(&jwk, "jwk").unwrap();

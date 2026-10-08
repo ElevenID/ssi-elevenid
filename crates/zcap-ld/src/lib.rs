@@ -486,20 +486,13 @@ mod tests {
     use ssi_claims::VerificationParameters;
     use ssi_data_integrity::DataIntegrity;
     use ssi_dids_core::{example::ExampleDIDResolver, VerificationMethodDIDResolver};
-    use ssi_jwk::JWK;
-    use ssi_verification_methods::SingleSecretSigner;
     use static_iref::uri;
 
-    #[derive(Deserialize, PartialEq, Debug, Clone, Serialize)]
+    #[derive(Deserialize, PartialEq, Debug, Clone, Serialize, Default)]
     enum Actions {
+        #[default]
         Read,
         Write,
-    }
-
-    impl Default for Actions {
-        fn default() -> Self {
-            Self::Read
-        }
     }
 
     #[test]
@@ -537,26 +530,13 @@ mod tests {
 
     #[async_std::test]
     async fn round_trip() {
-        use ssi_data_integrity::ProofOptions;
-
         let dk = VerificationMethodDIDResolver::new(ExampleDIDResolver::new());
         let params = VerificationParameters::from_resolver(&dk);
 
         let alice_did = "did:example:foo";
         let alice_vm = UriBuf::new(format!("{}#key2", alice_did).into_bytes()).unwrap();
-        let alice = SingleSecretSigner::new(JWK {
-            key_id: Some(alice_vm.clone().into()),
-            ..serde_json::from_str(include_str!("../../../tests/ed25519-2020-10-18.json")).unwrap()
-        })
-        .into_local();
-
         let bob_did = "did:example:bar";
         let bob_vm = UriBuf::new(format!("{}#key1", bob_did).into_bytes()).unwrap();
-        let bob = SingleSecretSigner::new(JWK {
-            key_id: Some(bob_vm.clone().into()),
-            ..serde_json::from_str(include_str!("../../../tests/ed25519-2021-06-16.json")).unwrap()
-        })
-        .into_local();
 
         let del: Delegation<(), DefaultProps<Actions>> = Delegation {
             invoker: Some(bob_vm.clone()),
@@ -571,41 +551,26 @@ mod tests {
             DefaultProps::new(Some(Actions::Read)),
         );
 
-        let ldpo_alice = ProofOptions::new(
-            "2024-02-13T16:25:26Z".parse().unwrap(),
-            alice_vm.clone().into_iri().into(),
-            ProofPurpose::CapabilityDelegation,
-            Default::default(),
+        let signed_del: DataIntegrity<Delegation<(), DefaultProps<Actions>>, AnySuite> =
+            serde_json::from_str(include_str!("../tests/fixtures/delegation.json")).unwrap();
+        let signed_inv: DataIntegrity<Invocation<DefaultProps<Actions>>, AnySuite> =
+            serde_json::from_str(include_str!("../tests/fixtures/invocation.json")).unwrap();
+        assert_eq!(
+            serde_json::to_value(&signed_del.claims).unwrap(),
+            serde_json::to_value(&del).unwrap()
         );
-        let ldpo_bob = ProofOptions::new(
-            "2024-02-13T16:25:26Z".parse().unwrap(),
-            bob_vm.clone().into_iri().into(),
-            ProofPurpose::CapabilityInvocation,
-            Default::default(),
+        assert_eq!(
+            serde_json::to_value(&signed_inv.claims).unwrap(),
+            serde_json::to_value(&inv).unwrap()
         );
-
-        let signed_del = del
-            .clone()
-            .sign(
-                AnySuite::pick(alice.secret(), ldpo_alice.verification_method.as_ref()).unwrap(),
-                &dk,
-                &alice,
-                ldpo_alice.clone(),
-                &[],
-            )
-            .await
-            .unwrap();
-
-        let signed_inv = inv
-            .sign(
-                AnySuite::pick(bob.secret(), ldpo_bob.verification_method.as_ref()).unwrap(),
-                &dk,
-                &bob,
-                ldpo_bob,
-                &signed_del.id,
-            )
-            .await
-            .unwrap();
+        assert_eq!(
+            serde_json::to_value(&signed_del.proofs.first().unwrap().verification_method).unwrap(),
+            serde_json::Value::String(alice_vm.to_string())
+        );
+        assert_eq!(
+            serde_json::to_value(&signed_inv.proofs.first().unwrap().verification_method).unwrap(),
+            serde_json::Value::String(bob_vm.to_string())
+        );
 
         // happy path
         assert!(signed_del.verify(&params).await.unwrap().is_ok());
@@ -646,16 +611,12 @@ mod tests {
             invoker: Some(uri!("did:example:someone_else").to_owned()),
             ..del.clone()
         };
-        let signed_wrong_del = wrong_del
-            .sign(
-                AnySuite::pick(alice.secret(), ldpo_alice.verification_method.as_ref()).unwrap(),
-                &dk,
-                &alice,
-                ldpo_alice,
-                &[],
-            )
-            .await
-            .unwrap();
+        let signed_wrong_del: DataIntegrity<Delegation<(), DefaultProps<Actions>>, AnySuite> =
+            serde_json::from_str(include_str!("../tests/fixtures/wrong-delegation.json")).unwrap();
+        assert_eq!(
+            serde_json::to_value(&signed_wrong_del.claims).unwrap(),
+            serde_json::to_value(&wrong_del).unwrap()
+        );
         assert!(signed_inv
             .verify(InvocationVerifier::from_verifier_ref(
                 &params,

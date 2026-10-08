@@ -23,8 +23,8 @@ pub const ALEO_METHOD_2021_TYPE: &str = "AleoMethod2021";
 /// The verification method object must have a `blockchainAccountId` property, identifying the
 /// signer's Aleo
 /// account address and network id for verification purposes. The chain id part of the account address
-/// identifies an Aleo network as specified in the proposed [CAIP for Aleo Blockchain
-/// Reference][caip-aleo-chain-ref]. Signatures use parameters defined per network. Currently only
+/// identifies an Aleo network using a CAIP-2 chain reference. Signatures use
+/// parameters defined per network. Currently only
 /// network id "1" (CAIP-2 "aleo:1" / testnet1) is supported. The account
 /// address format is documented in [Aleo
 /// documentation](https://developer.aleo.org/aleo/concepts/accounts#account-address).
@@ -61,14 +61,6 @@ impl AleoMethod2021 {
     pub const NAME: &'static str = ALEO_METHOD_2021_TYPE;
     pub const IRI: &'static Iri = iri!("https://w3id.org/security#AleoMethod2021");
 
-    pub fn sign_bytes(
-        &self,
-        key: &JWK, // FIXME: check key algorithm?
-        bytes: &[u8],
-    ) -> Result<Vec<u8>, MessageSignatureError> {
-        ssi_jwk::aleo::sign(bytes, key).map_err(|_| MessageSignatureError::InvalidSecretKey)
-    }
-
     pub fn verify_bytes(
         &self,
         _key: &JWK, // FIXME: check key algorithm?
@@ -82,7 +74,10 @@ impl AleoMethod2021 {
         ) {
             Ok(()) => Ok(true),
             Err(ssi_jwk::aleo::AleoVerifyError::InvalidSignature) => Ok(false),
-            Err(_) => Err(MessageSignatureError::InvalidSecretKey),
+            Err(ssi_jwk::aleo::AleoVerifyError::AddressFromStr(_)) => {
+                Err(MessageSignatureError::InvalidPublicKey)
+            }
+            Err(error) => Err(MessageSignatureError::signature_failed(error)),
         }
     }
 }
