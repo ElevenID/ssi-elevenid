@@ -1,10 +1,8 @@
 {
 	"type": "SignatureTest",
 	"id": "https://www.w3.org/TR/vc-di-ecdsa/#representation-ecdsa-rdfc-2019-with-curve-p-256",
-	"keyPair": {
-		"publicKeyMultibase": "zDnaepBuvsQ8cpsWrVKw8fbpGpvPeNSjVPTWoq6cRqaYzBKVP",
-		"secretKeyMultibase": "z42twTcNeSYcnqg1FLuSFs2bsGH3ZqbRHFmvS9XMsYhjxvHN"
-	},
+	"expectedAlgorithm": "ES256",
+	"expectedMessageSha256": "78ac33a79121c24d7d1a08db9e519bfac739f03e1a62be6d54457c43c19b09cc",
 	"verificationMethods": {
 		"https://vc.example/issuers/5678#zDnaepBuvsQ8cpsWrVKw8fbpGpvPeNSjVPTWoq6cRqaYzBKVP": {
 			"type": "Multikey",

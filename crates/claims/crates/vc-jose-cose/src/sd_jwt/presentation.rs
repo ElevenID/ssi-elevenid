@@ -7,7 +7,7 @@ use ssi_jws::JwsSigner;
 use ssi_jwt::{ClaimSet, InfallibleClaimSet, JWTClaims};
 use ssi_sd_jwt::{JsonPointer, RevealError, RevealedSdJwt, SdAlg, SdJwt, SdJwtBuf};
 use ssi_vc::{
-    enveloped::EnvelopedVerifiableCredential,
+    enveloped::{EnvelopedVerifiableCredential, EnvelopedVerifiablePresentation},
     v2::{syntax::JsonPresentation, Presentation, PresentationTypes},
     MaybeIdentified,
 };
@@ -76,7 +76,7 @@ impl<T: Serialize> SdJwtVp<T> {
     pub async fn sign_into_enveloped(
         &self,
         signer: &impl JwsSigner,
-    ) -> Result<EnvelopedVerifiableCredential, SignatureError> {
+    ) -> Result<EnvelopedVerifiablePresentation, SignatureError> {
         let pointers: [&JsonPointer; 0] = [];
         self.conceal_and_sign_into_enveloped(SdAlg::Sha256, &pointers, signer)
             .await
@@ -96,9 +96,9 @@ impl<T: Serialize> SdJwtVp<T> {
         sd_alg: SdAlg,
         pointers: &[impl Borrow<JsonPointer>],
         signer: &impl JwsSigner,
-    ) -> Result<EnvelopedVerifiableCredential, SignatureError> {
+    ) -> Result<EnvelopedVerifiablePresentation, SignatureError> {
         let sd_jwt = self.conceal_and_sign(sd_alg, pointers, signer).await?;
-        Ok(EnvelopedVerifiableCredential {
+        Ok(EnvelopedVerifiablePresentation {
             context: Context::iri_ref(ssi_vc::v2::CREDENTIALS_V2_CONTEXT_IRI.to_owned().into()),
             id: format!("data:application/vp-ld+sd-jwt,{sd_jwt}")
                 .parse()
@@ -168,42 +168,3 @@ impl<E, P, T: ValidateClaims<E, P>> ValidateClaims<E, P> for SdJwtVp<T> {
 
 impl<T> ClaimSet for SdJwtVp<T> {}
 impl<T> InfallibleClaimSet for SdJwtVp<T> {}
-
-#[cfg(test)]
-mod tests {
-    use serde_json::json;
-    use ssi_claims_core::VerificationParameters;
-    use ssi_jwk::JWK;
-    use ssi_sd_jwt::{SdJwt, SdJwtBuf};
-    use ssi_vc::{enveloped::EnvelopedVerifiableCredential, v2::syntax::JsonPresentation};
-
-    use crate::SdJwtVp;
-
-    async fn verify(input: &SdJwt, key: &JWK) {
-        let vp = SdJwtVp::decode_reveal_any(input).unwrap();
-        let params = VerificationParameters::from_resolver(key);
-        let result = vp.verify(params).await.unwrap();
-        assert_eq!(result, Ok(()))
-    }
-
-    #[async_std::test]
-    async fn sd_jwt_vp_roundtrip() {
-        let vp: JsonPresentation<EnvelopedVerifiableCredential> = serde_json::from_value(json!({
-            "@context": [
-                "https://www.w3.org/ns/credentials/v2",
-                "https://www.w3.org/ns/credentials/examples/v2"
-            ],
-            "type": "VerifiablePresentation",
-            "verifiableCredential": [{
-                "@context": ["https://www.w3.org/ns/credentials/v2"],
-                "type": ["EnvelopedVerifiableCredential"],
-                "id": "data:application/vc-ld+jwt,eyJraWQiOiJFeEhrQk1XOWZtYmt2VjI2Nm1ScHVQMnNVWV9OX0VXSU4xbGFwVXpPOHJvIiwiYWxnIjoiRVMzODQifQ.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiLCJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvZXhhbXBsZXMvdjIiXSwiaWQiOiJodHRwOi8vdW5pdmVyc2l0eS5leGFtcGxlL2NyZWRlbnRpYWxzLzE4NzIiLCJ0eXBlIjpbIlZlcmlmaWFibGVDcmVkZW50aWFsIiwiRXhhbXBsZUFsdW1uaUNyZWRlbnRpYWwiXSwiaXNzdWVyIjoiaHR0cHM6Ly91bml2ZXJzaXR5LmV4YW1wbGUvaXNzdWVycy81NjUwNDkiLCJ2YWxpZEZyb20iOiIyMDEwLTAxLTAxVDE5OjIzOjI0WiIsImNyZWRlbnRpYWxTY2hlbWEiOnsiaWQiOiJodHRwczovL2V4YW1wbGUub3JnL2V4YW1wbGVzL2RlZ3JlZS5qc29uIiwidHlwZSI6Ikpzb25TY2hlbWEifSwiY3JlZGVudGlhbFN1YmplY3QiOnsiaWQiOiJkaWQ6ZXhhbXBsZToxMjMiLCJkZWdyZWUiOnsidHlwZSI6IkJhY2hlbG9yRGVncmVlIiwibmFtZSI6IkJhY2hlbG9yIG9mIFNjaWVuY2UgYW5kIEFydHMifX19.d2k4O3FytQJf83kLh-HsXuPvh6yeOlhJELVo5TF71gu7elslQyOf2ZItAXrtbXF4Kz9WivNdztOayz4VUQ0Mwa8yCDZkP9B2pH-9S_tcAFxeoeJ6Z4XnFuL_DOfkR1fP"
-            }]
-        })).unwrap();
-
-        let key = JWK::generate_p256();
-        let enveloped = SdJwtVp(vp).sign_into_enveloped(&key).await.unwrap();
-        let jws = SdJwtBuf::new(enveloped.id.decoded_data().unwrap().into_owned()).unwrap();
-        verify(&jws, &key).await
-    }
-}

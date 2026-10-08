@@ -4,64 +4,23 @@
 //! [COSE]: <https://datatracker.ietf.org/doc/html/rfc8152>
 //! [`coset`]: <https://crates.io/crates/coset>
 //!
-//! # Usage
+//! # Verifying a COSE signature
+//!
+//! This example uses a signed COSE object and its public key.
 //!
 //! ```
 //! # #[async_std::main]
 //! # async fn main() {
-//! # #[cfg(feature = "secp256r1")] {
-//! use std::borrow::Cow;
-//! use serde::{Serialize, Deserialize};
-//! use ssi_claims_core::{VerifiableClaims, ValidateClaims, VerificationParameters};
-//! use ssi_cose::{CosePayload, ValidateCoseHeader, CoseSignatureBytes, DecodedCoseSign1, CoseKey, key::CoseKeyGenerate};
+//! use ssi_claims_core::VerificationParameters;
+//! use ssi_cose::{CoseKey, CoseSign1BytesBuf, DecodedCoseSign1};
+//! use ssi_cose::coset::CborSerializable;
 //!
-//! // Our custom payload type.
-//! #[derive(Serialize, Deserialize)]
-//! struct CustomPayload {
-//!   data: String
-//! }
-//!
-//! // Define how the payload is encoded in COSE.
-//! impl CosePayload for CustomPayload {
-//!   // Serialize the payload as JSON.
-//!   fn payload_bytes(&self) -> Cow<[u8]> {
-//!     Cow::Owned(serde_json::to_vec(self).unwrap())
-//!   }
-//! }
-//!
-//! // Define how to validate the COSE header (always valid by default).
-//! impl<P> ValidateCoseHeader<P> for CustomPayload {}
-//!
-//! // Define how to validate the payload (always valid by default).
-//! impl<P> ValidateClaims<P, CoseSignatureBytes> for CustomPayload {}
-//!
-//! // Create a payload.
-//! let payload = CustomPayload {
-//!   data: "Some Data".to_owned()
-//! };
-//!
-//! // Create a signature key.
-//! let key = CoseKey::generate_p256(); // requires the `secp256r1` feature.
-//!
-//! // Sign the payload!
-//! let bytes = payload.sign(
-//!   &key,
-//!   true // should the `COSE_Sign1` object be tagged or not.
-//! ).await.unwrap();
-//!
-//! // Decode the signed COSE object.
-//! let decoded: DecodedCoseSign1<CustomPayload> = bytes
-//!     .decode(true)
-//!     .unwrap()
-//!     .try_map(|_, bytes| serde_json::from_slice(bytes))
-//!     .unwrap();
-//!
-//! assert_eq!(decoded.signing_bytes.payload.data, "Some Data");
-//!
-//! // Verify the signature.
-//! let params = VerificationParameters::from_resolver(&key);
-//! decoded.verify(&params).await.unwrap();
-//! # } }
+//! let key = CoseKey::from_slice(&hex::decode("a4010220012158208ba05652fc7578854ee90d0035a99b140c2b6421637f844713608f1c6d52bd862258208a51164a9a95a53ae827079f7cefe8d54e11c83dd0daf9cc5f51076bcd9ac4fd").unwrap()).unwrap();
+//! let signed = CoseSign1BytesBuf::new(hex::decode("d28443a10126a0475041594c4f41445840a3d5781892b9db81658ed3d223ac06e264e31129dcaf46592e9fe5b55e5f2acc3c734dec47129069698ed97492b7502267e6ef4430b9189c189fddf7b13867a8").unwrap());
+//! let decoded: DecodedCoseSign1 = signed.decode(true).unwrap();
+//! assert_eq!(decoded.signing_bytes.payload.as_bytes(), b"PAYLOAD");
+//! assert_eq!(decoded.verify(VerificationParameters::from_resolver(&key)).await.unwrap(), Ok(()));
+//! # }
 //! ```
 use ssi_claims_core::SignatureError;
 use std::borrow::Cow;

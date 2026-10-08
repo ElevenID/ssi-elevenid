@@ -30,6 +30,7 @@ ssi-claims = { workspace = true, features = [
     "dif",
     "secp256k1",
 ] }
+ssi-data-integrity.workspace = true
 ssi-json-ld.workspace = true
 xsd-types.workspace = true
 linked-data.workspace = true

@@ -104,129 +104,14 @@ let params = VerificationParameters::from_resolver(vm_resolver);
 assert!(vc.verify(&params).await.expect("verification failed").is_ok());
 ```
 
-### Signature & Custom Claims
+### Signing with a remote key
 
-In the previous section we have seen how to load and verify arbitrary
-claims. This section shows how to create and sign custom claims.
-With SSI, any Rust type can serve as claims as long as it complies to
-certain conditions such as implementing serialization/deserialization
-functions using [`serde`](https://crates.io/crates/serde).
-Don't forget to enable the `derive` feature for `serde`.
-
-In the following example, we create a custom type `MyClaims` and sign it
-as a JWT.
-
-```rust
-use serde::{Serialize, Deserialize};
-use ssi::prelude::*;
-
-// Defines the shape of our custom claims.
-#[derive(Serialize, Deserialize)]
-pub struct MyClaims {
-  name: String,
-  email: String
-}
-
-// Create JWT claims from our custom ("private") claims.
-let claims = JWTClaims::from_private_claims(MyClaims {
-  name: "John Smith".to_owned(),
-  email: "john.smith@example.org".to_owned()
-});
-
-// Create a random signing key, and turn its public part into a DID URL.
-let mut key = JWK::generate_p256(); // requires the `p256` feature.
-let did = DIDJWK::generate_url(&key.to_public());
-key.key_id = Some(did.into());
-
-// Sign the claims.
-let jwt = claims.sign(&key).await.expect("signature failed");
-
-// Create a verification method resolver, which will be in charge of
-// decoding the DID back into a public key.
-let vm_resolver = DIDJWK.into_vm_resolver::<AnyJwkMethod>();
-
-// Setup the verification parameters.
-let params = VerificationParameters::from_resolver(vm_resolver);
-
-// Verify the JWT.
-assert!(jwt.verify(&params).await.expect("verification failed").is_ok());
-
-// Print the JWT.
-println!("{jwt}")
-```
-
-#### Verifiable Credential
-
-We can use a similar technique to sign a VC with custom claims.
-The [`SpecializedJsonCredential`] type provides a customizable
-implementation of the VC data-model 1.1 where you can set the credential type
-yourself.
-
-[`SpecializedJsonCredential`]: ssi_vc::v1::syntax::SpecializedJsonCredential
-
-```rust
-use static_iref::uri;
-use serde::{Serialize, Deserialize};
-use ssi::claims::vc::syntax::NonEmptyVec;
-use ssi::prelude::*;
-
-// Defines the shape of our custom claims.
-#[derive(Serialize, Deserialize)]
-pub struct MyCredentialSubject {
-  #[serde(rename = "https://example.org/#name")]
-  name: String,
-
-  #[serde(rename = "https://example.org/#email")]
-  email: String
-}
-
-let credential = ssi::claims::vc::v1::JsonCredential::<MyCredentialSubject>::new(
-  Some(uri!("https://example.org/#CredentialId").to_owned()), // id
-  uri!("https://example.org/#Issuer").to_owned().into(), // issuer
-  DateTime::now().into(), // issuance date
-  NonEmptyVec::new(MyCredentialSubject {
-    name: "John Smith".to_owned(),
-    email: "john.smith@example.org".to_owned()
-  })
-);
-
-// Create a random signing key, and turn its public part into a DID URL.
-let key = JWK::generate_p256(); // requires the `p256` feature.
-let did = DIDJWK::generate_url(&key.to_public());
-
-// Create a verification method resolver, which will be in charge of
-// decoding the DID back into a public key.
-let vm_resolver = DIDJWK.into_vm_resolver();
-
-// Create a signer from the secret key.
-// Here we use the simple `SingleSecretSigner` signer type which always uses
-// the same provided secret key to sign messages.
-let signer = SingleSecretSigner::new(key.clone()).into_local();
-
-// Turn the DID URL into a verification method reference.
-let verification_method = did.into_iri().into();
-
-// Automatically pick a suitable Data-Integrity signature suite for our key.
-let cryptosuite = AnySuite::pick(&key, Some(&verification_method))
-  .expect("could not find appropriate cryptosuite");
-
-let vc = cryptosuite.sign(
-  credential,
-  &vm_resolver,
-  &signer,
-  ProofOptions::from_method(verification_method)
-).await.expect("signature failed");
-```
-
-It is critical that custom claims can be interpreted as Linked-Data. In
-the above example this is done by specifying a serialization URL for each
-field of `MyCredentialSubject`. This can also be done by creating a custom
-JSON-LD context and embed it to `credential` using either
-[`SpecializedJsonCredential`]'s [`context`] field or leveraging its context type
-parameter.
-
-[`context`]: ssi_vc::v1::syntax::SpecializedJsonCredential::context
-
+Issuance uses a provider implementing `Signer` and `MessageSigner`. The
+provider maps a public verification method to a remote key reference and asks
+the KMS to sign the prepared bytes. Private key material stays in the KMS.
+Applications must supply this provider; this fork does not generate or load
+local signing keys. Public signed VC and JWT fixtures remain in
+`examples/files` for the verification examples.
 ## Data-Models
 
 The examples above are using the VC data-model 1.1, but you ssi also has support for:

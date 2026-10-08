@@ -82,14 +82,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::borrow::Cow;
-
     use nquads_syntax::Parse;
+    use ssi_claims_core::MessageSignatureError;
+    use ssi_crypto::algorithm::{BbsInstance, BbsParameters};
     use ssi_data_integrity_core::{suite::standard::SignatureAlgorithm, ProofConfiguration};
     use ssi_di_sd_primitives::HmacSha256Key;
-    use ssi_verification_methods::{
-        Multikey, ProofPurpose, ReferenceOrOwned, Signer, SingleSecretSigner,
-    };
+    use ssi_verification_methods::{MessageSigner, Multikey, ProofPurpose, ReferenceOrOwned};
     use static_iref::uri;
 
     use crate::{
@@ -101,6 +99,45 @@ mod tests {
     };
 
     use super::{super::tests::*, Bbs2023SignatureAlgorithm};
+
+    // Fixed response from the public bbs-2023 base-proof vector. The signer
+    // boundary stays exercised without bringing a private key into this test.
+    const FIXED_BBS_SIGNATURE_HEX: &str = "86bb8063768d4b708f9a65821ee6fe426b3d4f6fe5c2c5c9a5f80caa573fd8c20cbdf17826fe4e1a624070ba5f201d9202a0fceb55842ea9e61a72a7aa04891437fc35f6ab9ef8bf8ec3004cc46c9458";
+
+    struct FixedBbsSigner;
+
+    impl MessageSigner<ssi_bbs::Bbs> for FixedBbsSigner {
+        async fn sign(
+            self,
+            _algorithm: BbsInstance,
+            _message: &[u8],
+        ) -> Result<Vec<u8>, MessageSignatureError> {
+            Err(MessageSignatureError::InvalidQuery)
+        }
+
+        async fn sign_multi(
+            self,
+            algorithm: BbsInstance,
+            messages: &[Vec<u8>],
+        ) -> Result<Vec<u8>, MessageSignatureError> {
+            let BbsParameters::Baseline { header } = *algorithm.0 else {
+                panic!("expected baseline BBS signing parameters")
+            };
+            assert_eq!(
+                hex::encode(header),
+                concat!(
+                    "3a5bbf25d34d90b18c35cd2357be6a6f42301e94fc9e52f77e93b773c5614bdf",
+                    "555de05f898817e31301bac187d0c3ff2b03e2cbdb4adb4d568c17de961f9a18"
+                )
+            );
+            assert_eq!(messages.len(), 14);
+            assert_eq!(
+                hex::encode(ssi_crypto::hashes::sha256::sha256(&messages.concat())),
+                "74c89aad50bb646e6a3f1050ca7ded7cefe32c3fd379a8bd360609e3be708058"
+            );
+            Ok(hex::decode(FIXED_BBS_SIGNATURE_HEX).unwrap())
+        }
+    }
 
     const MANDATORY: &str =
 "_:b0 <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://www.w3.org/2018/credentials#VerifiableCredential> .
@@ -174,8 +211,6 @@ _:b5 <https://windsurf.grotto-networking.com/selective#year> \"2023\"^^<http://w
             &*PUBLIC_KEY,
         );
 
-        let signer = SingleSecretSigner::new(SECRET_KEY.clone());
-
         let canonical_configuration = vec![
             "_:c14n0 <http://purl.org/dc/terms/created> \"2023-08-15T23:36:38Z\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .\n".to_string(),
             "_:c14n0 <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://w3id.org/security#DataIntegrityProof> .\n".to_string(),
@@ -193,11 +228,7 @@ _:b5 <https://windsurf.grotto-networking.com/selective#year> \"2023\"^^<http://w
 
         let signature = Bbs2023SignatureAlgorithm::sign(
             &verification_method,
-            signer
-                .for_method(Cow::Borrowed(&verification_method))
-                .await
-                .unwrap()
-                .unwrap(),
+            FixedBbsSigner,
             HashData::Base(BaseHashData {
                 transformed_document: TransformedBase {
                     options: Bbs2023SignatureOptions {

@@ -1,10 +1,24 @@
 {
 	"type": "SignatureTest",
 	"id": "https://www.w3.org/TR/vc-di-ecdsa/#base-proof",
-	"keyPair": {
-		"publicKeyMultibase": "zDnaepBuvsQ8cpsWrVKw8fbpGpvPeNSjVPTWoq6cRqaYzBKVP",
-		"secretKeyMultibase": "z42twTcNeSYcnqg1FLuSFs2bsGH3ZqbRHFmvS9XMsYhjxvHN"
-	},
+	"expectedAlgorithm": "ES256",
+	"expectedMessageSha256": "d33676f94a923a503dc14456d2a23406ceca4dfbb5e89341d1d387b9c5dd61b7",
+	"proofScopedMessageSha256": [
+		"e4c1c001c667d08ecd572828d71953d48323faa6dbfc1363f95ec3eb1f1d7a83",
+		"2da4153b4aebfb1403c5942da20b254b6d82d7809b3d0293788c0b6cc8241716",
+		"9497973f99083bb85d51b8cbd9fc26e41e3b14f8195b6cfc4856280ab3d98735",
+		"3abd4b00962754d19477a28cf7fe9f2b408d9a261fb4bc77b803d6ea1c892c53",
+		"b4778455050ae97146c2e37d63b9ff398090d840d2e042cdcb43ff4b4ab47d9b",
+		"bc86560c3ef35539ae0372a25bf307c4a754d27ba23ec1b8d8dbd0b5379c7f38",
+		"4e17f27fe9bede0dcbe3caf6bdd679e7132790daef8ea9a819cbef58968e54f3",
+		"c6679efd36570085ee530613669dbb6619e6c36b48faea92f0e25f4cd2f33b82",
+		"01b6face7fd57cb2d4b6ee2af4c7f4d5bb44a80da5247246e1e194d1325500b4",
+		"4c72c469eaeeb13c746ba50d2e4328ebb06a6141dec034337df2e1d689f586d2",
+		"36750bff9bb3baf39a3b9171226ebd92d7a700e2eb94041b6052e54983d29248",
+		"72e6ee79f675a7ee5f563c4447ea98a7f79f8e8ab3e386e2926e7fe1cdde8f65",
+		"d2c293132f48a20e2c9d86236f6e0375188f9510a0405c7c10014baecf7a6800",
+		"7c4df69704651982c4b01ba710e7b0043a6668a9f4e59becafbd0c7b74c31d65"
+	],
 	"verificationMethods": {
 		"did:key:zDnaepBuvsQ8cpsWrVKw8fbpGpvPeNSjVPTWoq6cRqaYzBKVP#zDnaepBuvsQ8cpsWrVKw8fbpGpvPeNSjVPTWoq6cRqaYzBKVP": {
 			"type": "Multikey",
@@ -21,10 +35,6 @@
 		"proofPurpose": "assertionMethod"
 	},
 	"options": {
-		"keyPair": {
-			"publicKeyMultibase": "zDnaeTHfhmSaQKBc7CmdL3K7oYg3D6SC7yowe2eBeVd2DH32r",
-			"secretKeyMultibase": "z42tqvNGyzyXRzotAYn43UhcFtzDUVdxJ7461fwrfhBPLmfY"
-		},
 		"hmacKeyString": "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF",
 		"mandatoryPointers": ["/issuer", "/credentialSubject/sailNumber", "/credentialSubject/sails/1", "/credentialSubject/boards/0/year", "/credentialSubject/sails/2"]
 	},

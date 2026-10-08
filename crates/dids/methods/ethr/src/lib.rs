@@ -373,23 +373,10 @@ impl From<VerificationMethod> for DIDVerificationMethod {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use iref::IriBuf;
     use serde_json::json;
-    use ssi_claims::{
-        data_integrity::{
-            signing::AlterSignature, AnyInputSuiteOptions, AnySuite, CryptographicSuite,
-            ProofOptions,
-        },
-        vc::{
-            syntax::NonEmptyVec,
-            v1::{JsonCredential, JsonPresentation},
-        },
-        VerificationParameters,
-    };
+    use ssi_claims::VerificationParameters;
     use ssi_dids_core::{did, DIDResolver};
     use ssi_jwk::JWK;
-    use ssi_verification_methods_core::{ProofPurpose, ReferenceOrOwned, SingleSecretSigner};
-    use static_iref::uri;
 
     #[test]
     fn jwk_to_did_ethr() {
@@ -465,132 +452,6 @@ mod tests {
             serde_json::to_value(doc).unwrap(),
             serde_json::to_value(doc_expected).unwrap()
         );
-    }
-
-    #[tokio::test]
-    async fn credential_prove_verify_did_ethr() {
-        eprintln!("with EcdsaSecp256k1RecoveryMethod2020...");
-        credential_prove_verify_did_ethr2(false).await;
-        eprintln!("with Eip712Method2021...");
-        credential_prove_verify_did_ethr2(true).await;
-    }
-
-    async fn credential_prove_verify_did_ethr2(eip712: bool) {
-        let didethr = DIDEthr.into_vm_resolver();
-        let verifier = VerificationParameters::from_resolver(&didethr);
-        let key: JWK = serde_json::from_value(json!({
-            "alg": "ES256K-R",
-            "kty": "EC",
-            "crv": "secp256k1",
-            "x": "yclqMZ0MtyVkKm1eBh2AyaUtsqT0l5RJM3g4SzRT96A",
-            "y": "yQzUwKnftWCJPGs-faGaHiYi1sxA6fGJVw2Px_LCNe8",
-            "d": "meTmccmR_6ZsOa2YuTTkKkJ4ZPYsKdAH1Wx_RRf2j_E"
-        }))
-        .unwrap();
-
-        let did = DIDEthr::generate(&key).unwrap();
-        eprintln!("did: {}", did);
-
-        let cred = JsonCredential::new(
-            None,
-            did.clone().into_uri().into(),
-            "2021-02-18T20:23:13Z".parse().unwrap(),
-            NonEmptyVec::new(json_syntax::json!({
-                "id": "did:example:foo"
-            })),
-        );
-
-        let verification_method = if eip712 {
-            ReferenceOrOwned::Reference(IriBuf::new(format!("{did}#Eip712Method2021")).unwrap())
-        } else {
-            ReferenceOrOwned::Reference(IriBuf::new(format!("{did}#controller")).unwrap())
-        };
-
-        let suite = AnySuite::pick(&key, Some(&verification_method)).unwrap();
-        let issue_options = ProofOptions::new(
-            "2021-02-18T20:23:13Z".parse().unwrap(),
-            verification_method,
-            ProofPurpose::Assertion,
-            AnyInputSuiteOptions::default(),
-        );
-
-        eprintln!("vm {:?}", issue_options.verification_method);
-        let signer = SingleSecretSigner::new(key).into_local();
-        let vc = suite
-            .sign(cred.clone(), &didethr, &signer, issue_options.clone())
-            .await
-            .unwrap();
-        println!(
-            "proof: {}",
-            serde_json::to_string_pretty(&vc.proofs).unwrap()
-        );
-        if eip712 {
-            assert_eq!(vc.proofs.first().unwrap().signature.as_ref(), "0xd3f4a049551fd25c7fb0789c7303be63265e8ade2630747de3807710382bbb7a25b0407e9f858a771782c35b4f487f4337341e9a4375a073730bda643895964e1b")
-        } else {
-            assert_eq!(vc.proofs.first().unwrap().signature.as_ref(), "eyJhbGciOiJFUzI1NkstUiIsImNyaXQiOlsiYjY0Il0sImI2NCI6ZmFsc2V9..nwNfIHhCQlI-j58zgqwJgX2irGJNP8hqLis-xS16hMwzs3OuvjqzZIHlwvdzDMPopUA_Oq7M7Iql2LNe0B22oQE");
-        }
-        assert!(vc.verify(&verifier).await.unwrap().is_ok());
-
-        // test that issuer property is used for verification
-        let mut vc_bad_issuer = vc.clone();
-        vc_bad_issuer.issuer = uri!("did:pkh:example:bad").to_owned().into();
-
-        // It should fail.
-        assert!(vc_bad_issuer.verify(&verifier).await.unwrap().is_err());
-
-        // Check that proof JWK must match proof verificationMethod
-        let wrong_key = JWK::generate_secp256k1();
-        let wrong_signer = SingleSecretSigner::new(wrong_key.clone()).into_local();
-        let vc_wrong_key = suite
-            .sign(
-                cred,
-                &didethr,
-                &wrong_signer,
-                ProofOptions {
-                    options: AnyInputSuiteOptions::default()
-                        .with_public_key(wrong_key.to_public())
-                        .unwrap(),
-                    ..issue_options
-                },
-            )
-            .await
-            .unwrap();
-        assert!(vc_wrong_key.verify(&verifier).await.unwrap().is_err());
-
-        // Make it into a VP
-        let presentation = JsonPresentation::new(
-            Some(uri!("http://example.org/presentations/3731").to_owned()),
-            None,
-            vec![vc],
-        );
-
-        let vp_issue_options = ProofOptions::new(
-            "2021-02-18T20:23:13Z".parse().unwrap(),
-            IriBuf::new(format!("{did}#controller")).unwrap().into(),
-            ProofPurpose::Authentication,
-            AnyInputSuiteOptions::default(),
-        );
-
-        let vp = suite
-            .sign(presentation, &didethr, &signer, vp_issue_options)
-            .await
-            .unwrap();
-
-        println!("VP: {}", serde_json::to_string_pretty(&vp).unwrap());
-        assert!(vp.verify(&verifier).await.unwrap().is_ok());
-
-        // Mess with proof signature to make verify fail.
-        let mut vp_fuzzed = vp.clone();
-        vp_fuzzed.proofs.first_mut().unwrap().signature.alter();
-        let vp_fuzzed_result = vp_fuzzed.verify(&verifier).await;
-        assert!(vp_fuzzed_result.is_err() || vp_fuzzed_result.is_ok_and(|v| v.is_err()));
-
-        // test that holder is verified
-        let mut vp_bad_holder = vp;
-        vp_bad_holder.holder = Some(uri!("did:pkh:example:bad").to_owned());
-
-        // It should fail.
-        assert!(vp_bad_holder.verify(&verifier).await.unwrap().is_err());
     }
 
     #[tokio::test]

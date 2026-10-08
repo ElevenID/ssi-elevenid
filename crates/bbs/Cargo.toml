@@ -12,4 +12,3 @@ documentation = "https://docs.rs/ssi-bbs/"
 ssi-crypto.workspace = true
 ssi-claims-core.workspace = true
 zkryptium = "=0.2.2"
-rand.workspace = true

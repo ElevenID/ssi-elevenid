@@ -1,12 +1,10 @@
 use core::fmt;
-use std::borrow::Cow;
 
 use base64::Engine;
 use json_patch::Patch;
 use serde::{Deserialize, Serialize};
 use ssi_dids_core::{
-    document::{service::Endpoint as ServiceEndpoint, Service},
-    registration::{DIDDocumentOperation, DIDDocumentOperationKind, DIDTransactionCreationError},
+    document::service::Endpoint as ServiceEndpoint, registration::DIDTransactionCreationError,
 };
 use ssi_jwk::{Base64urlUInt, JWK};
 use ssi_verification_methods::ProofPurpose;
@@ -28,7 +26,7 @@ const MULTIHASH_SHA2_256_SIZE: &[u8] = &[0x20];
 ///
 /// This is used when converting JWK to [verification method map][vmm] for the Create operation.
 ///
-/// Reference: [Sidetree §12.1.1 `add-public-keys`][apk] Step 3.2
+/// Reference: [Sidetree Ã‚Â§12.1.1 `add-public-keys`][apk] Step 3.2
 ///
 /// [apk]: https://identity.foundation/sidetree/spec/v1.0.0/#add-public-keys
 /// [vmm]: https://www.w3.org/TR/did-core/#verification-methods
@@ -134,7 +132,7 @@ impl From<RecoverError> for DIDTransactionCreationError {
 
 /// Parameters for a Sidetree client implementation
 ///
-/// This trait consistest of the subset of parameters defined in [Sidetree §5. Default Parameters][default-params] that are needed to implemented a Sidetree client, that is a client to the [Sidetree REST API][sidetree-rest].
+/// This trait consistest of the subset of parameters defined in [Sidetree Ã‚Â§5. Default Parameters][default-params] that are needed to implemented a Sidetree client, that is a client to the [Sidetree REST API][sidetree-rest].
 ///
 /// [default-params]: https://identity.foundation/sidetree/spec/v1.0.0/#default-parameters
 /// [sidetree-rest]: https://identity.foundation/sidetree/api/
@@ -201,11 +199,6 @@ pub trait Sidetree {
         base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(data)
     }
 
-    /// Generate a new keypair ([KEY_ALGORITHM][ka])
-    ///
-    /// [ka]: https://identity.foundation/sidetree/spec/v1.0.0/#key-algorithm
-    fn generate_key() -> JWK;
-
     /// Ensure that a keypair is valid for this Sidetree DID Method
     ///
     /// Check that the key uses this Sidetree DID method's [KEY_ALGORITHM][ka].
@@ -218,8 +211,8 @@ pub trait Sidetree {
 
     /// [`REVEAL_VALUE`](https://identity.foundation/sidetree/spec/v1.0.0/#reveal-value)
     fn reveal_value(commitment_value: &[u8]) -> String {
-        // The spec implies that REVEAL_VALUE uses HASH_PROTOCOL, in §6.2.1:
-        //   "Use the implementation’s HASH_PROTOCOL to hash the canonicalized public key to generate the REVEAL_VALUE"
+        // The spec implies that REVEAL_VALUE uses HASH_PROTOCOL, in Ã‚Â§6.2.1:
+        //   "Use the implementationÃ¢â‚¬â„¢s HASH_PROTOCOL to hash the canonicalized public key to generate the REVEAL_VALUE"
         //   https://identity.foundation/sidetree/spec/v1.0.0/#public-key-commitment-scheme
         let hash = Self::hash_protocol(commitment_value);
         Self::data_encoding_scheme(&hash)
@@ -233,7 +226,7 @@ pub trait Sidetree {
 
     /// Method name for Sidetree-based DID
     ///
-    /// Mentioned in [Sidetree §9. DID URI Composition](https://identity.foundation/sidetree/spec/v1.0.0/#did-uri-composition)
+    /// Mentioned in [Sidetree Ã‚Â§9. DID URI Composition](https://identity.foundation/sidetree/spec/v1.0.0/#did-uri-composition)
     const METHOD: &'static str;
 
     /// Network instance
@@ -246,17 +239,17 @@ pub trait Sidetree {
 
     /// Maximum length of `controller` property
     ///
-    /// Reference: [Sidetree §12.1.1 `add-public-keys`](https://identity.foundation/sidetree/spec/v1.0.0/#add-public-keys)
+    /// Reference: [Sidetree Ã‚Â§12.1.1 `add-public-keys`](https://identity.foundation/sidetree/spec/v1.0.0/#add-public-keys)
     const MAX_CONTROLLER_LENGTH: Option<usize> = None;
 
     /// Maximum length of `publicKeyMultibase` property
     ///
-    /// Reference: [Sidetree §12.1.1 `add-public-keys`](https://identity.foundation/sidetree/spec/v1.0.0/#add-public-keys)
+    /// Reference: [Sidetree Ã‚Â§12.1.1 `add-public-keys`](https://identity.foundation/sidetree/spec/v1.0.0/#add-public-keys)
     const MAX_PKMB_LENGTH: Option<usize> = None;
 
     /// Hash and encode data
     ///
-    /// [Sidetree §6.1 Hashing Process](https://identity.foundation/sidetree/spec/#hashing-process)
+    /// [Sidetree Ã‚Â§6.1 Hashing Process](https://identity.foundation/sidetree/spec/#hashing-process)
     fn hash(data: &[u8]) -> String {
         let hash = Self::hash_protocol(data);
         /*
@@ -268,7 +261,7 @@ pub trait Sidetree {
         Self::data_encoding_scheme(&hash)
     }
 
-    /// [Public Key Commitment Scheme (Sidetree §6.2.1)][pkcs]
+    /// [Public Key Commitment Scheme (Sidetree Ã‚Â§6.2.1)][pkcs]
     ///
     /// [pkcs]: https://identity.foundation/sidetree/spec/v1.0.0/#public-key-commitment-scheme
     fn commitment_scheme(pkjwk: &PublicKeyJwk) -> String {
@@ -285,10 +278,10 @@ pub trait Sidetree {
     /// the update key and recovery key and respective
     /// [commitments][].
     ///
-    /// Sidetree specifies in ([§11.1 Create][create]) that creating a Sidetree DID involves
+    /// Sidetree specifies in ([Ã‚Â§11.1 Create][create]) that creating a Sidetree DID involves
     /// generating a Update keypair and Recovery keypair. That is implemented in [Self::create].
     ///
-    /// **Note**: The Sidetree specification ([§6.2.1 Public Key Commitment
+    /// **Note**: The Sidetree specification ([Ã‚Â§6.2.1 Public Key Commitment
     /// Scheme][pkcs]) recommends not reusing public keys across different commitment invocations, and
     /// requires not using public key JWK payloads across commitment invocations.
     ///
@@ -328,187 +321,6 @@ pub trait Sidetree {
         };
 
         Ok(Operation::Create(create_operation))
-    }
-
-    /// Create a Sidetree-based DID
-    ///
-    /// Generate keypairs and construct a Create Operation according to [Sidetree §11.1
-    /// Create][create]. Returns the private keys and the create operation.
-    ///
-    /// [create]: https://identity.foundation/sidetree/spec/v1.0.0/#create
-    fn create(patches: Vec<DIDStatePatch>) -> Result<(Operation, JWK, JWK), CreateError> {
-        let update_keypair = Self::generate_key();
-        let recovery_keypair = Self::generate_key();
-        let update_pk = PublicKeyJwk::try_from(update_keypair.to_public())
-            .map_err(|_| CreateError::InvalidUpdateKey)?;
-        let recovery_pk = PublicKeyJwk::try_from(recovery_keypair.to_public())
-            .map_err(|_| CreateError::InvalidRecoveryKey)?;
-        let create_op = Self::create_existing(&update_pk, &recovery_pk, patches)?;
-        Ok((create_op, update_keypair, recovery_keypair))
-    }
-
-    /// Create a Sidetree-based DID
-    ///
-    /// Construct a DID Update Operation according to [Sidetree §11.2
-    /// Update][update]. Returns the update operation.
-    ///
-    /// Unlike [Self::create] and [Self::recover], this does not generate keys, since the specification does not
-    /// call for that here. Instead, the caller must generate a new update keypair, and pass
-    /// its public key in the `new_update_pk` argument.
-    ///
-    /// Using a `update_key` with a [JWK Nonce][jwkn] is not yet supported.
-    ///
-    /// [update]: https://identity.foundation/sidetree/spec/v1.0.0/#update
-    /// [jwkn]: https://identity.foundation/sidetree/spec/#jwk-nonce
-    fn update(
-        did_suffix: DIDSuffix,
-        update_key: &JWK,
-        new_update_pk: &PublicKeyJwk,
-        patches: Vec<DIDStatePatch>,
-    ) -> Result<UpdateOperation, UpdateError> {
-        let update_pk = PublicKeyJwk::try_from(update_key.to_public())
-            .map_err(|_| UpdateError::InvalidUpdateKey)?;
-        let canonicalized_update_pk = json_canonicalization_scheme(&update_pk).unwrap();
-        let update_reveal_value = Self::reveal_value(canonicalized_update_pk.as_bytes());
-
-        if new_update_pk == &update_pk {
-            return Err(UpdateError::UpdateKeyUnchanged);
-        }
-
-        let new_update_commitment = Self::commitment_scheme(new_update_pk);
-
-        let update_operation_delta_object = Delta {
-            patches,
-            update_commitment: new_update_commitment,
-        };
-
-        let delta_string = json_canonicalization_scheme(&update_operation_delta_object).unwrap();
-        let delta_hash = Self::hash(delta_string.as_bytes());
-
-        let algorithm = Self::SIGNATURE_ALGORITHM;
-        let claims = UpdateClaims {
-            update_key: update_pk,
-            delta_hash,
-        };
-        let signed_data = ssi_jwt::encode_sign(algorithm, &claims, update_key)
-            .map_err(|_| UpdateError::SignatureFailed)?;
-        let update_op = UpdateOperation {
-            did_suffix,
-            reveal_value: update_reveal_value,
-            delta: update_operation_delta_object,
-            signed_data,
-        };
-
-        Ok(update_op)
-    }
-
-    /// Recover a Sidetree-based DID using existing keys
-    ///
-    /// Like [Self::recover] but does not generate or handle the new update key pair and recovery
-    /// key pair; instead, their public keys must be provided by the caller in the `new_update_pk`
-    /// and `new_recovery_pk` arguments.
-    ///
-    /// Returns the constructed DID Recover operation.
-    fn recover_existing(
-        did_suffix: DIDSuffix,
-        recovery_key: &JWK,
-        new_update_pk: &PublicKeyJwk,
-        new_recovery_pk: &PublicKeyJwk,
-        patches: Vec<DIDStatePatch>,
-    ) -> Result<Operation, RecoverError> {
-        let recovery_pk = PublicKeyJwk::try_from(recovery_key.to_public())
-            .map_err(|_| RecoverError::InvalidRecoveryKey)?;
-
-        if new_recovery_pk == &recovery_pk {
-            return Err(RecoverError::RecoveryKeyUnchanged);
-        }
-
-        let canonicalized_recovery_pk = json_canonicalization_scheme(&recovery_pk).unwrap();
-        let recover_reveal_value = Self::reveal_value(canonicalized_recovery_pk.as_bytes());
-        let new_update_commitment = Self::commitment_scheme(new_update_pk);
-        let new_recovery_commitment = Self::commitment_scheme(new_recovery_pk);
-
-        let recover_operation_delta_object = Delta {
-            patches,
-            update_commitment: new_update_commitment,
-        };
-
-        let delta_string = json_canonicalization_scheme(&recover_operation_delta_object).unwrap();
-        let delta_hash = Self::hash(delta_string.as_bytes());
-
-        let algorithm = Self::SIGNATURE_ALGORITHM;
-        let claims = RecoveryClaims {
-            recovery_commitment: new_recovery_commitment,
-            recovery_key: recovery_pk,
-            delta_hash,
-            anchor_origin: None,
-        };
-        let signed_data = ssi_jwt::encode_sign(algorithm, &claims, recovery_key)
-            .map_err(|_| RecoverError::SignatureFailed)?;
-        let recover_op = RecoverOperation {
-            did_suffix,
-            reveal_value: recover_reveal_value,
-            delta: recover_operation_delta_object,
-            signed_data,
-        };
-        Ok(Operation::Recover(recover_op))
-    }
-
-    /// Recover a Sidetree-based DID
-    ///
-    /// Generate keypairs and construct a Recover Operation according to [Sidetree §11.3
-    /// Recover][recover]. Returns the recover operation.
-    ///
-    /// [recover]: https://identity.foundation/sidetree/spec/v1.0.0/#recover
-    fn recover(
-        did_suffix: DIDSuffix,
-        recovery_key: &JWK,
-        patches: Vec<DIDStatePatch>,
-    ) -> Result<(Operation, JWK, JWK), RecoverError> {
-        let new_update_keypair = Self::generate_key();
-        let new_update_pk = PublicKeyJwk::try_from(new_update_keypair.to_public()).unwrap();
-
-        let new_recovery_keypair = Self::generate_key();
-        let new_recovery_pk = PublicKeyJwk::try_from(new_recovery_keypair.to_public()).unwrap();
-
-        let recover_op = Self::recover_existing(
-            did_suffix,
-            recovery_key,
-            &new_update_pk,
-            &new_recovery_pk,
-            patches,
-        )?;
-
-        Ok((recover_op, new_update_keypair, new_recovery_keypair))
-    }
-
-    /// Deactivate a Sidetree-based DID
-    ///
-    /// Construct a Deactivate Operation according to [Sidetree §11.4
-    /// Deactivate][deactivate]. Returns the deactivate operation.
-    ///
-    /// [deactivate]: https://identity.foundation/sidetree/spec/v1.0.0/#deactivate
-    fn deactivate(
-        did_suffix: DIDSuffix,
-        recovery_key: JWK,
-    ) -> Result<DeactivateOperation, DeactivateError> {
-        let recovery_pk = PublicKeyJwk::try_from(recovery_key.to_public())
-            .map_err(|_| DeactivateError::InvalidRecoveryKey)?;
-        let canonicalized_recovery_pk = json_canonicalization_scheme(&recovery_pk).unwrap();
-        let recover_reveal_value = Self::reveal_value(canonicalized_recovery_pk.as_bytes());
-        let algorithm = Self::SIGNATURE_ALGORITHM;
-        let claims = DeactivateClaims {
-            did_suffix: did_suffix.clone(),
-            recovery_key: recovery_pk,
-        };
-        let signed_data = ssi_jwt::encode_sign(algorithm, &claims, &recovery_key)
-            .map_err(|_| DeactivateError::SignatureFailed)?;
-        let recover_op = DeactivateOperation {
-            did_suffix,
-            reveal_value: recover_reveal_value,
-            signed_data,
-        };
-        Ok(recover_op)
     }
 
     /// Serialize and hash [Suffix Data][SuffixData], to generate a [Short-Form Sidetree
@@ -563,7 +375,7 @@ pub enum InvalidSidetreeDIDSuffix {
 /// Property of a public key / verification method containing public key data,
 /// as part of a [PublicKeyEntry][].
 ///
-/// per [Sidetree §12.1.1 `add-public-keys`: Step 4][apk].
+/// per [Sidetree Ã‚Â§12.1.1 `add-public-keys`: Step 4][apk].
 ///
 /// [apk]: https://identity.foundation/sidetree/spec/v1.0.0/#add-public-keys
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -585,7 +397,7 @@ pub enum PublicKey {
 /// Used by the [`add-public-keys`](DIDStatePatch::AddPublicKeys) and
 /// [`replace`](DIDStatePatch::Replace) DID state patch actions.
 ///
-/// Specified in [Sidetree §12.1.1 `add-public-keys`][apk].
+/// Specified in [Sidetree Ã‚Â§12.1.1 `add-public-keys`][apk].
 ///
 /// [apk]: https://identity.foundation/sidetree/spec/v1.0.0/#add-public-keys
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -655,7 +467,7 @@ impl TryFrom<JWK> for PublicKeyEntry {
 /// Used by the [`add-services`](DIDStatePatch::AddServices) and
 /// [`replace`](DIDStatePatch::Replace) DID state patch actions.
 ///
-/// Specified in [Sidetree §12.1.3 `add-services`][as].
+/// Specified in [Sidetree Ã‚Â§12.1.3 `add-services`][as].
 ///
 /// [as]: https://identity.foundation/sidetree/spec/v1.0.0/#add-services
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -752,9 +564,9 @@ pub enum DIDStatePatch {
 /// Create/Update/Recover Delta Object
 ///
 /// ### References
-/// - [Sidetree §11.1 Create - Create Operation Delta Object][codo]
-/// - [Sidetree §11.2 Update - Update Operation Delta Object][uodo]
-/// - [Sidetree §11.3 Recover - Recover Operation Delta Object][rodo]
+/// - [Sidetree Ã‚Â§11.1 Create - Create Operation Delta Object][codo]
+/// - [Sidetree Ã‚Â§11.2 Update - Update Operation Delta Object][uodo]
+/// - [Sidetree Ã‚Â§11.3 Recover - Recover Operation Delta Object][rodo]
 ///
 /// [codo]: https://identity.foundation/sidetree/spec/v1.0.0/#create-delta-object
 /// [uodo]: https://identity.foundation/sidetree/spec/v1.0.0/#update-delta-object
@@ -774,7 +586,7 @@ pub struct Delta {
 /// Wraps [ssi_jwk::JWK], while allowing a `nonce` property, and disallowing private key
 /// properties ("d").
 ///
-/// Sidetree may allow a `nonce` property in public key JWKs ([§6.2.2 JWK Nonce][jwkn]).
+/// Sidetree may allow a `nonce` property in public key JWKs ([Ã‚Â§6.2.2 JWK Nonce][jwkn]).
 ///
 /// [jwkn]: https://identity.foundation/sidetree/spec/#jwk-nonce
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -827,124 +639,6 @@ impl TryFrom<PublicKeyJwk> for JWK {
     }
 }
 
-fn b64len(s: &str) -> usize {
-    base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(s).len()
-}
-
-impl DIDStatePatch {
-    /// Convert a [DID Document Operation][ddo] and DID to a Sidetree [DID State Patch][dsp].
-    ///
-    /// [ddp]: https://identity.foundation/did-registration/#diddocumentoperation
-    /// [dsp]: https://identity.foundation/sidetree/spec/v1.0.0/#did-state-patches
-    fn try_from_with_did<S: Sidetree>(
-        did_doc_op: DIDDocumentOperation,
-        did: &SidetreeDID<S>,
-    ) -> Result<Self, DIDTransactionCreationError> {
-        match did_doc_op {
-            DIDDocumentOperation::SetDidDocument(_doc) => {
-                Err(DIDTransactionCreationError::UnimplementedDocumentOperation(
-                    DIDDocumentOperationKind::SetDidDocument,
-                ))
-            }
-            DIDDocumentOperation::AddToDidDocument(_props) => {
-                Err(DIDTransactionCreationError::UnimplementedDocumentOperation(
-                    DIDDocumentOperationKind::AddToDidDocument,
-                ))
-            }
-            DIDDocumentOperation::RemoveFromDidDocument(_props) => {
-                Err(DIDTransactionCreationError::UnimplementedDocumentOperation(
-                    DIDDocumentOperationKind::RemoveFromDidDocument,
-                ))
-            }
-            DIDDocumentOperation::SetVerificationMethod { vmm, purposes } => {
-                let sub_id = did_url_to_id(&vmm.id, did)?;
-                let mut value = serde_json::to_value(vmm).unwrap();
-                value["id"] = serde_json::Value::String(sub_id);
-                value["purposes"] = serde_json::to_value(purposes).unwrap();
-                let entry: PublicKeyEntry = serde_json::from_value(value)
-                    .map_err(|_| DIDTransactionCreationError::InvalidVerificationMethod)?;
-                // TODO: allow omitted controller property
-                Ok(DIDStatePatch::AddPublicKeys {
-                    public_keys: vec![entry],
-                })
-            }
-            DIDDocumentOperation::SetService(service) => {
-                let Service {
-                    id,
-                    type_,
-                    service_endpoint,
-                    property_set,
-                } = service;
-
-                if !property_set.is_empty() {
-                    return Err(DIDTransactionCreationError::UnsupportedServiceProperty);
-                }
-
-                let service_endpoint = match service_endpoint {
-                    None => return Err(DIDTransactionCreationError::MissingServiceEndpoint),
-                    Some(values) => match values.into_single() {
-                        Some(value) => value,
-                        None => return Err(DIDTransactionCreationError::AmbiguousServiceEndpoint),
-                    },
-                };
-
-                let sub_id = did_url_to_id(&id, did)?;
-                let service_type = match type_.into_single() {
-                    Some(type_) => type_,
-                    None => return Err(DIDTransactionCreationError::AmbiguousServiceType),
-                };
-
-                if b64len(&service_type) > 30 {
-                    return Err(DIDTransactionCreationError::UnsupportedService {
-                        reason: Cow::Borrowed("Sidetree service type must contain no more than 30 Base64Url-encoded characters")
-                    });
-                }
-
-                if b64len(&sub_id) > 50 {
-                    return Err(DIDTransactionCreationError::UnsupportedService {
-                        reason: Cow::Borrowed("Sidetree service id must contain no more than 50 Base64Url-encoded characters")
-                    });
-                }
-
-                let entry = ServiceEndpointEntry {
-                    id: sub_id,
-                    r#type: service_type,
-                    service_endpoint,
-                };
-
-                Ok(DIDStatePatch::AddServices {
-                    services: vec![entry],
-                })
-            }
-            DIDDocumentOperation::RemoveVerificationMethod(did_url) => {
-                let id = did_url.to_string();
-                Ok(DIDStatePatch::RemovePublicKeys { ids: vec![id] })
-            }
-            DIDDocumentOperation::RemoveService(did_url) => {
-                let id = did_url.to_string();
-                Ok(DIDStatePatch::RemoveServices { ids: vec![id] })
-            }
-        }
-    }
-}
-
-/// Convert a DID URL to an object id given a DID
-///
-/// Object id is an id of a [ServiceEndpointEntry] or [PublicKeyEntry].
-fn did_url_to_id<S: Sidetree>(
-    did_url: &str,
-    did: &SidetreeDID<S>,
-) -> Result<String, DIDTransactionCreationError> {
-    let did_string = did.to_string();
-    let unprefixed = did_url
-        .strip_prefix(&did_string)
-        .ok_or(DIDTransactionCreationError::InvalidDIDURL)?;
-    let fragment = unprefixed
-        .strip_prefix('#')
-        .ok_or(DIDTransactionCreationError::InvalidDIDURL)?;
-    Ok(fragment.to_string())
-}
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SidetreeAPIError {
     // List of error codes: https://github.com/decentralized-identity/sidetree/blob/v1.0.0/lib/core/versions/1.0/ErrorCode.ts
@@ -975,9 +669,6 @@ mod tests {
     struct Example;
 
     impl Sidetree for Example {
-        fn generate_key() -> JWK {
-            JWK::generate_secp256k1()
-        }
         fn validate_key(key: &JWK) -> bool {
             is_secp256k1(key)
         }

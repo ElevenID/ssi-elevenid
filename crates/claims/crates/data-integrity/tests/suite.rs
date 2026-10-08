@@ -42,6 +42,15 @@ async fn ecdsa_sd_2023_signature() {
 
 #[cfg(all(feature = "w3c", feature = "secp256r1"))]
 #[async_std::test]
+async fn ecdsa_sd_2023_rejects_invalid_proof_scoped_signature() {
+    let Test::Signature(test) = Test::load("ecdsa_sd_2023/signature.json") else {
+        panic!("expected signature test vector")
+    };
+    test.run_with_tampered_proof_scoped_signature(true).await
+}
+
+#[cfg(all(feature = "w3c", feature = "secp256r1"))]
+#[async_std::test]
 async fn ecdsa_sd_2023_selection() {
     Test::load("ecdsa_sd_2023/selection.json").run().await
 }

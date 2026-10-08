@@ -284,7 +284,7 @@ impl JwsVec {
     /// Detached means the payload will not appear in the JWS.
     pub fn new_detached(header: Header, signature: &[u8]) -> Self {
         let mut bytes = header.encode().into_bytes();
-        bytes.extend([b'.', b'.']);
+        bytes.extend(*b"..");
         bytes.extend(signature.iter().copied());
         unsafe { Self::new_unchecked(bytes) }
     }

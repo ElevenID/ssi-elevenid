@@ -7,6 +7,8 @@ pub enum Error {
     #[error(transparent)]
     JWS(#[from] ssi_jws::Error),
     #[error(transparent)]
+    Signature(#[from] ssi_claims_core::SignatureError),
+    #[error(transparent)]
     DID(#[from] ssi_dids_core::resolution::DerefError),
     #[error(transparent)]
     IpldEncode(#[from] serde_ipld_dagjson::error::EncodeError),

@@ -3,14 +3,14 @@ use std::hash::Hash;
 use iref::{Iri, IriBuf, UriBuf};
 use serde::{Deserialize, Serialize};
 use ssi_caips::caip10::BlockchainAccountIdVerifyError;
-use ssi_claims_core::{InvalidProof, MessageSignatureError, ProofValidationError, ProofValidity};
+use ssi_claims_core::{InvalidProof, ProofValidationError, ProofValidity};
 use ssi_jwk::JWK;
 use ssi_verification_methods_core::VerificationMethodSet;
 use static_iref::iri;
 
 use crate::{
-    ExpectedType, GenericVerificationMethod, InvalidVerificationMethod, SigningMethod,
-    TypedVerificationMethod, VerificationMethod,
+    ExpectedType, GenericVerificationMethod, InvalidVerificationMethod, TypedVerificationMethod,
+    VerificationMethod,
 };
 
 // mod context;
@@ -53,35 +53,6 @@ pub struct Eip712Method2021 {
 impl Eip712Method2021 {
     pub const NAME: &'static str = EIP712_METHOD_2021_TYPE;
     pub const IRI: &'static Iri = iri!("https://w3id.org/security#Eip712Method2021");
-
-    pub fn sign_bytes(
-        &self,
-        secret_key: &JWK,
-        data: &[u8],
-    ) -> Result<Vec<u8>, MessageSignatureError> {
-        use sha3::Digest;
-        use ssi_jwk::Params;
-        let ec_params = match &secret_key.params {
-            Params::EC(ec) => ec,
-            _ => return Err(MessageSignatureError::InvalidSecretKey),
-        };
-
-        let secret_key = k256::SecretKey::try_from(ec_params)
-            .map_err(|_| MessageSignatureError::InvalidSecretKey)?;
-        let signing_key = k256::ecdsa::SigningKey::from(secret_key);
-        let (sig, rec_id) = signing_key
-            .sign_digest_recoverable(sha3::Keccak256::new_with_prefix(data))
-            .map_err(MessageSignatureError::signature_failed)?;
-
-        // let sig: k256::ecdsa::recoverable::Signature = signing_key
-        //     .try_sign(data)
-        //     .map_err(|e| MessageSignatureError::SignatureFailed(Box::new(e)))?;
-
-        let mut result = sig.to_bytes().to_vec();
-        result.push(rec_id.to_byte());
-
-        Ok(result)
-    }
 
     pub fn verify_bytes(
         &self,
@@ -182,16 +153,5 @@ impl TryFrom<GenericVerificationMethod> for Eip712Method2021 {
                 .parse()
                 .map_err(|_| InvalidVerificationMethod::invalid_property("blockchainAccountId"))?,
         })
-    }
-}
-
-impl SigningMethod<JWK, ssi_crypto::algorithm::ESKeccakKR> for Eip712Method2021 {
-    fn sign_bytes(
-        &self,
-        key: &JWK,
-        _algorithm: ssi_crypto::algorithm::ESKeccakKR,
-        bytes: &[u8],
-    ) -> Result<Vec<u8>, MessageSignatureError> {
-        self.sign_bytes(key, bytes)
     }
 }

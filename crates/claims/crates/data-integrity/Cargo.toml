@@ -124,3 +124,5 @@ chrono.workspace = true
 ssi-multicodec.workspace = true
 serde = { workspace = true, features = ["derive"] }
 async-std = { workspace = true, features = ["attributes"] }
+hex.workspace = true
+multibase.workspace = true

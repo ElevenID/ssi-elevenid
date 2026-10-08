@@ -61,14 +61,6 @@ impl AleoMethod2021 {
     pub const NAME: &'static str = ALEO_METHOD_2021_TYPE;
     pub const IRI: &'static Iri = iri!("https://w3id.org/security#AleoMethod2021");
 
-    pub fn sign_bytes(
-        &self,
-        key: &JWK, // FIXME: check key algorithm?
-        bytes: &[u8],
-    ) -> Result<Vec<u8>, MessageSignatureError> {
-        ssi_jwk::aleo::sign(bytes, key).map_err(|_| MessageSignatureError::InvalidSecretKey)
-    }
-
     pub fn verify_bytes(
         &self,
         _key: &JWK, // FIXME: check key algorithm?
@@ -82,7 +74,10 @@ impl AleoMethod2021 {
         ) {
             Ok(()) => Ok(true),
             Err(ssi_jwk::aleo::AleoVerifyError::InvalidSignature) => Ok(false),
-            Err(_) => Err(MessageSignatureError::InvalidSecretKey),
+            Err(ssi_jwk::aleo::AleoVerifyError::AddressFromStr(_)) => {
+                Err(MessageSignatureError::InvalidPublicKey)
+            }
+            Err(error) => Err(MessageSignatureError::signature_failed(error)),
         }
     }
 }

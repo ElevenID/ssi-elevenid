@@ -144,6 +144,9 @@ pub trait JwsSigner {
         payload: P,
     ) -> Result<DecodedJws<'static, P>, SignatureError> {
         let info = self.fetch_info().await?;
+        if info.jwk.as_ref().is_some_and(|jwk| !jwk.is_public()) {
+            return Err(SignatureError::InvalidPublicKey);
+        }
         let payload_bytes = payload.payload_bytes();
 
         let header = Header {
@@ -248,49 +251,5 @@ impl<T: JwsSigner + Clone> JwsSigner for Cow<'_, T> {
 
     async fn sign(&self, payload: impl JwsPayload) -> Result<JwsBuf, SignatureError> {
         T::sign(self.as_ref(), payload).await
-    }
-}
-
-impl JwsSigner for JWK {
-    async fn fetch_info(&self) -> Result<JwsSignerInfo, SignatureError> {
-        Ok(JwsSignerInfo {
-            jwk: None, // Intentionally not copying the JWK here, it is rarely wanted.
-            kid: self.key_id.clone(),
-            alg: self
-                .get_algorithm()
-                .ok_or(SignatureError::MissingAlgorithm)?,
-            x5c: self.x509_certificate_chain.clone(),
-        })
-    }
-
-    async fn sign_bytes(&self, signing_bytes: &[u8]) -> Result<Vec<u8>, SignatureError> {
-        let algorithm = self
-            .get_algorithm()
-            .ok_or(SignatureError::MissingAlgorithm)?;
-        crate::sign_bytes(algorithm, signing_bytes, self).map_err(Into::into)
-    }
-}
-
-pub struct JwkWithAlgorithm<'a> {
-    pub jwk: &'a JWK,
-    pub algorithm: Algorithm,
-}
-
-impl<'a> JwkWithAlgorithm<'a> {
-    pub fn new(jwk: &'a JWK, algorithm: Algorithm) -> Self {
-        Self { jwk, algorithm }
-    }
-}
-
-impl JwsSigner for JwkWithAlgorithm<'_> {
-    async fn fetch_info(&self) -> Result<JwsSignerInfo, SignatureError> {
-        Ok(JwsSignerInfo {
-            alg: self.algorithm,
-            ..self.jwk.fetch_info().await?
-        })
-    }
-
-    async fn sign_bytes(&self, signing_bytes: &[u8]) -> Result<Vec<u8>, SignatureError> {
-        crate::sign_bytes(self.algorithm, signing_bytes, self.jwk).map_err(Into::into)
     }
 }

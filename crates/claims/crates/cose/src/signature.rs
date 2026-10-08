@@ -93,65 +93,58 @@ impl<T: CoseSigner> CoseSigner for &T {
 
 #[cfg(test)]
 mod tests {
-    use crate::{key::CoseKeyGenerate, CosePayload, DecodedCoseSign1};
-    use coset::CoseKey;
+    use crate::{CoseSign1BytesBuf, DecodedCoseSign1};
+    use coset::{CborSerializable, CoseKey};
+    use serde::Deserialize;
     use ssi_claims_core::VerificationParameters;
 
-    async fn sign_with(key: &CoseKey, tagged: bool) {
-        let bytes = b"PAYLOAD".sign(key, tagged).await.unwrap();
-        let decoded: DecodedCoseSign1 = bytes.decode(tagged).unwrap();
-
-        assert_eq!(decoded.signing_bytes.payload.as_bytes(), b"PAYLOAD");
-
-        let params = VerificationParameters::from_resolver(key);
-        assert_eq!(decoded.verify(params).await.unwrap(), Ok(()));
+    #[derive(Deserialize)]
+    struct SignedCase {
+        name: String,
+        tagged: bool,
+        public_hex: String,
+        signed_hex: String,
     }
 
-    #[cfg(feature = "ed25519")]
     #[async_std::test]
-    async fn sign_ed25519() {
-        sign_with(&CoseKey::generate_ed25519(), false).await
-    }
+    async fn signed_vectors_verify_and_tampering_fails() {
+        let cases: Vec<SignedCase> =
+            serde_json::from_str(include_str!("../tests/fixtures/signed-cases.json")).unwrap();
+        for case in cases {
+            let key = CoseKey::from_slice(&hex::decode(&case.public_hex).unwrap()).unwrap();
+            let bytes = CoseSign1BytesBuf::new(hex::decode(&case.signed_hex).unwrap());
+            let decoded: DecodedCoseSign1 = bytes.decode(case.tagged).unwrap();
+            assert_eq!(
+                decoded.signing_bytes.payload.as_bytes(),
+                b"PAYLOAD",
+                "{}",
+                case.name
+            );
+            assert_eq!(
+                decoded
+                    .verify(VerificationParameters::from_resolver(&key))
+                    .await
+                    .unwrap(),
+                Ok(()),
+                "{}",
+                case.name
+            );
 
-    #[cfg(feature = "ed25519")]
-    #[async_std::test]
-    async fn sign_ed25519_tagged() {
-        sign_with(&CoseKey::generate_ed25519(), true).await
-    }
-
-    #[cfg(feature = "secp256k1")]
-    #[async_std::test]
-    async fn sign_secp256k1() {
-        sign_with(&CoseKey::generate_secp256k1(), false).await
-    }
-
-    #[cfg(feature = "secp256k1")]
-    #[async_std::test]
-    async fn sign_secp256k1_tagged() {
-        sign_with(&CoseKey::generate_secp256k1(), true).await
-    }
-
-    #[cfg(feature = "secp256r1")]
-    #[async_std::test]
-    async fn sign_p256() {
-        sign_with(&CoseKey::generate_p256(), false).await
-    }
-
-    #[cfg(feature = "secp256r1")]
-    #[async_std::test]
-    async fn sign_p256_tagged() {
-        sign_with(&CoseKey::generate_p256(), true).await
-    }
-
-    #[cfg(feature = "secp384r1")]
-    #[async_std::test]
-    async fn sign_p384() {
-        sign_with(&CoseKey::generate_p384(), false).await
-    }
-
-    #[cfg(feature = "secp384r1")]
-    #[async_std::test]
-    async fn sign_p384_tagged() {
-        sign_with(&CoseKey::generate_p384(), true).await
+            let mut tampered = hex::decode(&case.signed_hex).unwrap();
+            let last = tampered.last_mut().unwrap();
+            *last ^= 1;
+            let tampered: DecodedCoseSign1 = CoseSign1BytesBuf::new(tampered)
+                .decode(case.tagged)
+                .unwrap();
+            assert_ne!(
+                tampered
+                    .verify(VerificationParameters::from_resolver(&key))
+                    .await
+                    .unwrap(),
+                Ok(()),
+                "{}",
+                case.name
+            );
+        }
     }
 }

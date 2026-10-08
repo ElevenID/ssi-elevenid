@@ -169,7 +169,7 @@ impl From<TypeRef> for String {
         match type_ {
             TypeRef::Struct(name) => name,
             _ => {
-                format!("{}", &type_)
+                format!("{}", type_)
             }
         }
     }

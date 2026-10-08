@@ -2,7 +2,7 @@ use hex::FromHexError;
 use iref::{Iri, IriBuf, UriBuf};
 use rdf_types::{Interpretation, Vocabulary};
 use serde::{Deserialize, Serialize};
-use ssi_claims_core::{InvalidProof, MessageSignatureError, ProofValidationError, ProofValidity};
+use ssi_claims_core::{InvalidProof, ProofValidationError, ProofValidity};
 use ssi_crypto::algorithm::ES256KR;
 use ssi_jwk::JWK;
 use ssi_verification_methods_core::{VerificationMethodSet, VerifyBytes};
@@ -10,8 +10,8 @@ use static_iref::iri;
 use std::{borrow::Cow, hash::Hash, str::FromStr};
 
 use crate::{
-    ExpectedType, GenericVerificationMethod, InvalidVerificationMethod, SigningMethod,
-    TypedVerificationMethod, VerificationMethod,
+    ExpectedType, GenericVerificationMethod, InvalidVerificationMethod, TypedVerificationMethod,
+    VerificationMethod,
 };
 
 pub const ECDSA_SECP_256K1_RECOVERY_METHOD_2020_TYPE: &str = "EcdsaSecp256k1RecoveryMethod2020";
@@ -87,12 +87,6 @@ impl TypedVerificationMethod for EcdsaSecp256k1RecoveryMethod2020 {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum SignatureError {
-    #[error("invalid secret key")]
-    InvalidSecretKey,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DigestFunction {
     Sha256,
@@ -115,22 +109,6 @@ impl EcdsaSecp256k1RecoveryMethod2020 {
 
     pub fn public_key_jwk(&'_ self) -> Option<Cow<'_, JWK>> {
         self.public_key.to_jwk()
-    }
-
-    pub fn sign(
-        &self,
-        secret_key: &JWK,
-        data: &[u8],
-        digest_function: DigestFunction,
-    ) -> Result<Vec<u8>, SignatureError> {
-        let algorithm = digest_function.into_crypto_algorithm();
-        let key_algorithm = secret_key.algorithm.unwrap_or(algorithm);
-        if !algorithm.is_compatible_with(key_algorithm) {
-            return Err(SignatureError::InvalidSecretKey);
-        }
-
-        ssi_jws::sign_bytes(algorithm, data, secret_key)
-            .map_err(|_| SignatureError::InvalidSecretKey)
     }
 
     pub fn verify_bytes(
@@ -414,29 +392,5 @@ impl TryFrom<GenericVerificationMethod> for EcdsaSecp256k1RecoveryMethod2020 {
             controller: m.controller,
             public_key,
         })
-    }
-}
-
-impl SigningMethod<JWK, ssi_crypto::algorithm::ES256KR> for EcdsaSecp256k1RecoveryMethod2020 {
-    fn sign_bytes(
-        &self,
-        secret: &JWK,
-        _algorithm: ssi_crypto::algorithm::ES256KR,
-        bytes: &[u8],
-    ) -> Result<Vec<u8>, MessageSignatureError> {
-        self.sign(secret, bytes, DigestFunction::Sha256)
-            .map_err(MessageSignatureError::signature_failed)
-    }
-}
-
-impl SigningMethod<JWK, ssi_crypto::algorithm::ESKeccakKR> for EcdsaSecp256k1RecoveryMethod2020 {
-    fn sign_bytes(
-        &self,
-        secret: &JWK,
-        _algorithm: ssi_crypto::algorithm::ESKeccakKR,
-        bytes: &[u8],
-    ) -> Result<Vec<u8>, MessageSignatureError> {
-        self.sign(secret, bytes, DigestFunction::Keccack)
-            .map_err(MessageSignatureError::signature_failed)
     }
 }

@@ -1,6 +1,6 @@
 use iref::{Iri, IriBuf, UriBuf};
 use serde::{Deserialize, Serialize};
-use ssi_claims_core::{InvalidProof, MessageSignatureError, ProofValidationError, ProofValidity};
+use ssi_claims_core::{InvalidProof, ProofValidationError, ProofValidity};
 use ssi_crypto::algorithm::AnyBlake2b;
 use ssi_jwk::JWK;
 use ssi_verification_methods_core::VerificationMethodSet;
@@ -8,8 +8,8 @@ use static_iref::iri;
 use std::{collections::BTreeMap, hash::Hash};
 
 use crate::{
-    ExpectedType, GenericVerificationMethod, InvalidVerificationMethod, SigningMethod,
-    TypedVerificationMethod, VerificationMethod,
+    ExpectedType, GenericVerificationMethod, InvalidVerificationMethod, TypedVerificationMethod,
+    VerificationMethod,
 };
 
 pub const TEZOS_METHOD_2021_IRI: &Iri = iri!("https://w3id.org/security#TezosMethod2021");
@@ -173,16 +173,6 @@ impl PublicKey {
             ),
         }
     }
-
-    pub fn sign_bytes(
-        &self,
-        key: &JWK,
-        algorithm: ssi_crypto::algorithm::AnyBlake2b,
-        bytes: &[u8],
-    ) -> Result<Vec<u8>, MessageSignatureError> {
-        ssi_jws::sign_bytes(algorithm.into(), bytes, key)
-            .map_err(MessageSignatureError::signature_failed)
-    }
 }
 
 impl VerificationMethod for TezosMethod2021 {
@@ -233,17 +223,5 @@ impl TryFrom<GenericVerificationMethod> for TezosMethod2021 {
                 TEZOS_METHOD_2021_TYPE,
             ))
         }
-    }
-}
-
-impl SigningMethod<JWK, ssi_crypto::algorithm::AnyBlake2b> for TezosMethod2021 {
-    fn sign_bytes(
-        &self,
-        key: &JWK,
-        algorithm: ssi_crypto::algorithm::AnyBlake2b,
-        bytes: &[u8],
-    ) -> Result<Vec<u8>, MessageSignatureError> {
-        ssi_jws::sign_bytes(algorithm.into(), bytes, key)
-            .map_err(MessageSignatureError::signature_failed)
     }
 }

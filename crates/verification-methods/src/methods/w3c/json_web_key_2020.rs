@@ -2,7 +2,7 @@ use std::{borrow::Cow, hash::Hash};
 
 use iref::{Iri, IriBuf, UriBuf};
 use serde::{Deserialize, Serialize};
-use ssi_claims_core::{InvalidProof, MessageSignatureError, ProofValidationError, ProofValidity};
+use ssi_claims_core::{InvalidProof, ProofValidationError, ProofValidity};
 use ssi_jwk::{Algorithm, JWK};
 use ssi_verification_methods_core::{JwkVerificationMethod, VerificationMethodSet, VerifyBytes};
 use static_iref::iri;
@@ -61,19 +61,6 @@ impl JsonWebKey2020 {
 
     pub fn public_key_jwk(&self) -> &JWK {
         &self.public_key
-    }
-
-    pub fn sign_bytes(
-        &self,
-        secret_key: &JWK,
-        algorithm: Option<ssi_jwk::Algorithm>,
-        data: &[u8],
-    ) -> Result<Vec<u8>, MessageSignatureError> {
-        let algorithm = algorithm
-            .or(secret_key.algorithm)
-            .ok_or(MessageSignatureError::InvalidSecretKey)?;
-        ssi_jws::sign_bytes(algorithm, data, secret_key)
-            .map_err(|_| MessageSignatureError::InvalidSecretKey)
     }
 
     pub fn verify_bytes(

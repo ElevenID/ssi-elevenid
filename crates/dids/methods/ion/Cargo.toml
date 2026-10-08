@@ -16,7 +16,6 @@ ssi-verification-methods.workspace = true
 ssi-dids-core = { workspace = true, features = ["http"] }
 ssi-jwk = { workspace = true, features = ["secp256k1"] }
 ssi-jws.workspace = true
-ssi-jwt.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_jcs.workspace = true

@@ -125,72 +125,10 @@ mod tests {
     use serde::Deserialize;
     use serde_json::json;
     use ssi_claims_core::{ValidateClaims, VerificationParameters};
-    use ssi_core::JsonPointerBuf;
     use ssi_jwk::JWK;
-    use ssi_jws::JwsPayload;
-    use ssi_jwt::{ClaimSet, JWTClaims};
+    use ssi_jwt::ClaimSet;
 
-    use crate::{sd_jwt, ConcealJwtClaims, KbJwtPayload, SdAlg, SdJwt};
-
-    #[async_std::test]
-    async fn kb_sign() {
-        let claims = JWTClaims::builder()
-            .iss("https://example.com/issuer")
-            .iat(1683000000)
-            .exp(1883000000)
-            .sub("user_42")
-            .build()
-            .unwrap();
-
-        let jwk = JWK::generate_p256();
-        let cnf_jwk = JWK::generate_p256();
-
-        let pointers: &[JsonPointerBuf] = &[];
-        let mut sd_jwt = claims
-            .conceal_and_sign(SdAlg::Sha256, pointers, &jwk)
-            .await
-            .unwrap();
-
-        let kb_jwt = KbJwtPayload::new(
-            "issuer".to_owned(),
-            "123nonce".to_owned(),
-            SdAlg::Sha256,
-            &sd_jwt,
-        )
-        .sign(&cnf_jwk)
-        .await
-        .unwrap();
-
-        sd_jwt.set_kb(&kb_jwt);
-
-        // SD-JWT+KB is ready. Now we verify it.
-
-        let params = VerificationParameters::from_resolver(&jwk);
-        let (revealed, verification_result) =
-            sd_jwt.decode_reveal_verify_any(&params).await.unwrap();
-
-        verification_result.expect("SD-JWT verification failed");
-
-        // Decode the KB-JWT part.
-        let kb_jwt = sd_jwt
-            .decode_kb()
-            .expect("invalid KB-JWT")
-            .expect("missing KB-JWT");
-
-        // Verify the KB-JWT claims.
-        let kb_jwt_claims = &kb_jwt.signing_bytes.payload;
-        assert_eq!(kb_jwt_claims.aud, "issuer");
-        assert_eq!(kb_jwt_claims.nonce.0, "123nonce");
-        assert!(kb_jwt_claims.sd_hash.verify(revealed.sd_alg, &sd_jwt));
-
-        // Verify the KB-JWT signature (and expiration status).
-        let params = VerificationParameters::from_resolver(cnf_jwk);
-        kb_jwt
-            .verify(&params)
-            .await
-            .expect("KB-JWT verification failed")
-            .expect("invalid KB-JWT signature");
-    }
+    use crate::SdJwt;
 
     #[async_std::test]
     async fn kb_verify() {
@@ -238,7 +176,11 @@ mod tests {
         .unwrap()
     });
 
-    const SD_JWT_KB: &SdJwt = sd_jwt!("eyJhbGciOiAiRVMyNTYiLCAidHlwIjogImV4YW1wbGUrc2Qtand0In0.eyJfc2QiOiBbIkNyUWU3UzVrcUJBSHQtbk1ZWGdjNmJkdDJTSDVhVFkxc1VfTS1QZ2tqUEkiLCAiSnpZakg0c3ZsaUgwUjNQeUVNZmVadTZKdDY5dTVxZWhabzdGN0VQWWxTRSIsICJQb3JGYnBLdVZ1Nnh5bUphZ3ZrRnNGWEFiUm9jMkpHbEFVQTJCQTRvN2NJIiwgIlRHZjRvTGJnd2Q1SlFhSHlLVlFaVTlVZEdFMHc1cnREc3JaemZVYW9tTG8iLCAiWFFfM2tQS3QxWHlYN0tBTmtxVlI2eVoyVmE1TnJQSXZQWWJ5TXZSS0JNTSIsICJYekZyendzY002R242Q0pEYzZ2Vks4QmtNbmZHOHZPU0tmcFBJWmRBZmRFIiwgImdiT3NJNEVkcTJ4Mkt3LXc1d1BFemFrb2I5aFYxY1JEMEFUTjNvUUw5Sk0iLCAianN1OXlWdWx3UVFsaEZsTV8zSmx6TWFTRnpnbGhRRzBEcGZheVF3TFVLNCJdLCAiaXNzIjogImh0dHBzOi8vaXNzdWVyLmV4YW1wbGUuY29tIiwgImlhdCI6IDE2ODMwMDAwMDAsICJleHAiOiAxODgzMDAwMDAwLCAic3ViIjogInVzZXJfNDIiLCAibmF0aW9uYWxpdGllcyI6IFt7Ii4uLiI6ICJwRm5kamtaX1ZDem15VGE2VWpsWm8zZGgta284YUlLUWM5RGxHemhhVllvIn0sIHsiLi4uIjogIjdDZjZKa1B1ZHJ5M2xjYndIZ2VaOGtoQXYxVTFPU2xlclAwVmtCSnJXWjAifV0sICJfc2RfYWxnIjogInNoYS0yNTYiLCAiY25mIjogeyJqd2siOiB7Imt0eSI6ICJFQyIsICJjcnYiOiAiUC0yNTYiLCAieCI6ICJUQ0FFUjE5WnZ1M09IRjRqNFc0dmZTVm9ISVAxSUxpbERsczd2Q2VHZW1jIiwgInkiOiAiWnhqaVdXYlpNUUdIVldLVlE0aGJTSWlyc1ZmdWVjQ0U2dDRqVDlGMkhaUSJ9fX0.MczwjBFGtzf-6WMT-hIvYbkb11NrV1WMO-jTijpMPNbswNzZ87wY2uHz-CXo6R04b7jYrpj9mNRAvVssXou1iw~WyJlbHVWNU9nM2dTTklJOEVZbnN4QV9BIiwgImZhbWlseV9uYW1lIiwgIkRvZSJd~WyJBSngtMDk1VlBycFR0TjRRTU9xUk9BIiwgImFkZHJlc3MiLCB7InN0cmVldF9hZGRyZXNzIjogIjEyMyBNYWluIFN0IiwgImxvY2FsaXR5IjogIkFueXRvd24iLCAicmVnaW9uIjogIkFueXN0YXRlIiwgImNvdW50cnkiOiAiVVMifV0~WyIyR0xDNDJzS1F2ZUNmR2ZyeU5STjl3IiwgImdpdmVuX25hbWUiLCAiSm9obiJd~WyJsa2x4RjVqTVlsR1RQVW92TU5JdkNBIiwgIlVTIl0~eyJhbGciOiAiRVMyNTYiLCAidHlwIjogImtiK2p3dCJ9.eyJub25jZSI6ICIxMjM0NTY3ODkwIiwgImF1ZCI6ICJodHRwczovL3ZlcmlmaWVyLmV4YW1wbGUub3JnIiwgImlhdCI6IDE3NDg1MzcyNDQsICJzZF9oYXNoIjogIjBfQWYtMkItRWhMV1g1eWRoX3cyeHp3bU82aU02NkJfMlFDRWFuSTRmVVkifQ.T3SIus2OidNl41nmVkTZVCKKhOAX97aOldMyHFiYjHm261eLiJ1YiuONFiMN8QlCmYzDlBLAdPvrXh52KaLgUQ");
+    const SD_JWT_KB: &SdJwt =
+        match SdJwt::from_str_const(include_str!("../tests/fixtures/sd_jwt_kb.txt")) {
+            Ok(value) => value,
+            Err(_) => panic!("invalid fixed SD-JWT"),
+        };
 
     #[derive(Debug, PartialEq, Deserialize)]
     struct ExampleAddress {

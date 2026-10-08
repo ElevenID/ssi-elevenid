@@ -175,53 +175,9 @@ impl<E, P, T: ValidateClaims<E, P>> ValidateClaims<E, P> for CoseVc<T> {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
-    use ssi_claims_core::VerificationParameters;
-    use ssi_cose::{coset::CoseKey, key::CoseKeyGenerate, CoseSign1Bytes, CoseSign1BytesBuf};
-    use ssi_vc::v2::JsonCredential;
+    use ssi_cose::CoseSign1BytesBuf;
 
     use super::CoseVc;
-
-    async fn verify(input: &CoseSign1Bytes, key: &CoseKey) {
-        let vc = CoseVc::decode_any(input, true).unwrap();
-        let params = VerificationParameters::from_resolver(key);
-        let result = vc.verify(params).await.unwrap();
-        assert_eq!(result, Ok(()))
-    }
-
-    #[async_std::test]
-    async fn cose_vc_roundtrip() {
-        let vc: JsonCredential = serde_json::from_value(json!({
-            "@context": [
-                "https://www.w3.org/ns/credentials/v2",
-                "https://www.w3.org/ns/credentials/examples/v2"
-            ],
-            "id": "http://university.example/credentials/1872",
-            "type": [
-                "VerifiableCredential",
-                "ExampleAlumniCredential"
-            ],
-            "issuer": "https://university.example/issuers/565049",
-            "validFrom": "2010-01-01T19:23:24Z",
-            "credentialSchema": {
-                "id": "https://example.org/examples/degree.json",
-                "type": "JsonSchema"
-            },
-            "credentialSubject": {
-                "id": "did:example:123",
-                "degree": {
-                "type": "BachelorDegree",
-                "name": "Bachelor of Science and Arts"
-                }
-            }
-        }))
-        .unwrap();
-
-        let key = CoseKey::generate_p256();
-        let enveloped = CoseVc(vc).sign_into_enveloped(&key).await.unwrap();
-        let jws = CoseSign1BytesBuf::new(enveloped.id.decoded_data().unwrap().into_owned());
-        verify(&jws, &key).await
-    }
 
     #[test]
     fn example7() {

@@ -16,7 +16,7 @@ use ssi_dids_core::{
     DIDBuf, DIDResolver, DIDURLBuf, Document,
 };
 use ssi_jwk::{Algorithm, JWK};
-use ssi_jws::{decode_jws_parts, sign_bytes, split_jws, verify_bytes, Header, JwsSignature};
+use ssi_jws::{decode_jws_parts, split_jws, verify_bytes, Header, JwsSignature, JwsSigner};
 use ssi_jwt::NumericDate;
 use ssi_verification_methods::{GenericVerificationMethod, InvalidVerificationMethod};
 use std::{borrow::Cow, fmt::Display};
@@ -210,35 +210,31 @@ impl<F, A> Payload<F, A> {
         }
     }
 
-    // NOTE IntoIter::new is deprecated, but into_iter() returns references until we move to 2021 edition
-    #[allow(deprecated)]
-    pub fn sign(self, algorithm: Algorithm, key: &JWK) -> Result<Ucan<F, A>, Error>
+    pub async fn sign(self, signer: &impl JwsSigner) -> Result<Ucan<F, A>, Error>
     where
         F: Serialize,
         A: Serialize,
     {
+        let info = signer.fetch_info().await?;
         let header = Header {
-            algorithm,
+            algorithm: info.alg,
+            key_id: info.kid,
             type_: Some("JWT".to_string()),
-            additional_parameters: std::array::IntoIter::new([(
+            additional_parameters: [(
                 "ucv".to_string(),
                 serde_json::Value::String("0.9.0".to_string()),
-            )])
+            )]
+            .into_iter()
             .collect(),
             ..Default::default()
         };
 
-        let signature = sign_bytes(
-            algorithm,
-            [
-                BASE64_URL_SAFE_NO_PAD.encode(serde_ipld_dagjson::to_vec(&header)?),
-                BASE64_URL_SAFE_NO_PAD.encode(serde_ipld_dagjson::to_vec(&self)?),
-            ]
-            .join(".")
-            .as_bytes(),
-            key,
-        )?
-        .into();
+        let signing_bytes = [
+            BASE64_URL_SAFE_NO_PAD.encode(serde_ipld_dagjson::to_vec(&header)?),
+            BASE64_URL_SAFE_NO_PAD.encode(serde_ipld_dagjson::to_vec(&self)?),
+        ]
+        .join(".");
+        let signature = signer.sign_bytes(signing_bytes.as_bytes()).await?.into();
 
         Ok(Ucan {
             header,
@@ -399,16 +395,18 @@ pub struct UcanRevocation {
 }
 
 impl UcanRevocation {
-    pub fn sign(
+    pub async fn sign(
         issuer: DIDURLBuf,
         revoke: Cid,
-        jwk: &JWK,
-        algorithm: Algorithm,
+        signer: &impl JwsSigner,
     ) -> Result<Self, Error> {
+        let challenge = signer
+            .sign_bytes(format!("REVOKE:{revoke}").as_bytes())
+            .await?;
         Ok(Self {
             issuer,
             revoke,
-            challenge: sign_bytes(algorithm, format!("REVOKE:{revoke}").as_bytes(), jwk)?,
+            challenge,
         })
     }
     pub async fn verify_signature(
@@ -468,6 +466,32 @@ impl UcanRevocation {
 mod tests {
     use super::*;
     use did_method_key::DIDKey;
+    use ssi_claims_core::SignatureError;
+    use ssi_jws::JwsSignerInfo;
+
+    struct FixedSigner {
+        signature: Vec<u8>,
+    }
+
+    impl JwsSigner for FixedSigner {
+        async fn fetch_info(&self) -> Result<JwsSignerInfo, SignatureError> {
+            Ok(JwsSignerInfo::new(None, Algorithm::EdDSA))
+        }
+
+        async fn sign_bytes(&self, message: &[u8]) -> Result<Vec<u8>, SignatureError> {
+            let encoded = std::str::from_utf8(message).unwrap();
+            let (header, payload) = encoded.split_once('.').unwrap();
+            let header: JsonValue =
+                serde_json::from_slice(&BASE64_URL_SAFE_NO_PAD.decode(header).unwrap()).unwrap();
+            let payload: JsonValue =
+                serde_json::from_slice(&BASE64_URL_SAFE_NO_PAD.decode(payload).unwrap()).unwrap();
+            assert_eq!(header["alg"], "EdDSA");
+            assert_eq!(header["typ"], "JWT");
+            assert_eq!(header["ucv"], "0.9.0");
+            assert_eq!(payload["aud"], "did:example:123");
+            Ok(self.signature.clone())
+        }
+    }
 
     #[async_std::test]
     async fn valid() {
@@ -512,6 +536,19 @@ mod tests {
         let case = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCIsInVjdiI6IjAuOS4wIn0.eyJhdHQiOltdLCJhdWQiOiJkaWQ6ZXhhbXBsZToxMjMiLCJleHAiOjkwMDAwMDAwMDEuMCwiaXNzIjoiZGlkOmtleTp6Nk1ram16ZXBUcGc0NFJvejhKbk45QXhUS0QyMjk1Z2p6M3h0NDhQb2k3MjYxR1MiLCJwcmYiOltdfQ.V38liNHsdVO0Zk_davTBsewq-2XCxs_3qIRLuwUNj87aqdlMfa9X5O5IRR5u7apzWm7sUiR0FS3J3Nnu7IWtBQ";
         let u = Ucan::<JsonValue>::decode(case).unwrap();
         u.verify_signature(&DIDKey).await.unwrap();
+    }
+
+    #[async_std::test]
+    async fn external_signer_receives_ucan_signing_bytes() {
+        let token = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCIsInVjdiI6IjAuOS4wIn0.eyJhdHQiOltdLCJhdWQiOiJkaWQ6ZXhhbXBsZToxMjMiLCJleHAiOjkwMDAwMDAwMDEuMCwiaXNzIjoiZGlkOmtleTp6Nk1ram16ZXBUcGc0NFJvejhKbk45QXhUS0QyMjk1Z2p6M3h0NDhQb2k3MjYxR1MiLCJwcmYiOltdfQ.V38liNHsdVO0Zk_davTBsewq-2XCxs_3qIRLuwUNj87aqdlMfa9X5O5IRR5u7apzWm7sUiR0FS3J3Nnu7IWtBQ";
+        let signer = FixedSigner {
+            signature: vec![0x42; 64],
+        };
+        let decoded = Ucan::<JsonValue>::decode(token).unwrap();
+        let signed = decoded.payload.sign(&signer).await.unwrap();
+        assert_eq!(signed.signature.as_ref(), &[0x42; 64]);
+        assert_eq!(signed.header.algorithm, Algorithm::EdDSA);
+        assert_eq!(signed.header.type_.as_deref(), Some("JWT"));
     }
 
     #[derive(Deserialize)]

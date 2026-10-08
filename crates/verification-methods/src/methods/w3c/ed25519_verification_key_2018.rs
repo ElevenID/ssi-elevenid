@@ -1,20 +1,17 @@
 use std::{borrow::Cow, hash::Hash, str::FromStr};
 
-use ed25519_dalek::{Signer, Verifier};
+use ed25519_dalek::Verifier;
 use iref::{Iri, IriBuf, UriBuf};
 use rdf_types::{Interpretation, Vocabulary};
 use serde::{Deserialize, Serialize};
-use ssi_claims_core::{
-    InvalidProof, MessageSignatureError, ProofValidationError, ProofValidity, SignatureError,
-};
+use ssi_claims_core::{InvalidProof, ProofValidationError, ProofValidity};
 use ssi_jwk::JWK;
-use ssi_jws::JwsString;
 use ssi_verification_methods_core::{JwkVerificationMethod, VerificationMethodSet, VerifyBytes};
 use static_iref::iri;
 
 use crate::{
-    ExpectedType, GenericVerificationMethod, InvalidVerificationMethod, SigningMethod,
-    TypedVerificationMethod, VerificationMethod,
+    ExpectedType, GenericVerificationMethod, InvalidVerificationMethod, TypedVerificationMethod,
+    VerificationMethod,
 };
 
 /// Ed25519 Verification Key 2018 type name.
@@ -59,23 +56,6 @@ impl Ed25519VerificationKey2018 {
 
     pub fn public_key_jwk(&self) -> JWK {
         self.public_key.to_jwk()
-    }
-
-    pub fn sign(
-        &self,
-        data: &[u8],
-        secret_key: &ed25519_dalek::SigningKey,
-    ) -> Result<JwsString, SignatureError> {
-        let header = ssi_jws::Header::new_unencoded(ssi_jwk::Algorithm::EdDSA, None);
-        let signing_bytes = header.encode_signing_bytes(data);
-        let signature = secret_key.sign(&signing_bytes);
-
-        Ok(ssi_jws::JwsString::from_signing_bytes_and_signature(
-            // TODO base64 encode signature?
-            signing_bytes,
-            signature.to_bytes(),
-        )
-        .unwrap())
     }
 
     pub fn verify_bytes(
@@ -143,18 +123,6 @@ impl TryFrom<GenericVerificationMethod> for Ed25519VerificationKey2018 {
                 .parse()
                 .map_err(|_| InvalidVerificationMethod::invalid_property("publicKeyBase58"))?,
         })
-    }
-}
-
-impl SigningMethod<JWK, ssi_crypto::algorithm::EdDSA> for Ed25519VerificationKey2018 {
-    fn sign_bytes(
-        &self,
-        secret: &JWK,
-        _algorithm: ssi_crypto::algorithm::EdDSA,
-        bytes: &[u8],
-    ) -> Result<Vec<u8>, MessageSignatureError> {
-        ssi_jws::sign_bytes(ssi_jwk::Algorithm::EdDSA, bytes, secret)
-            .map_err(MessageSignatureError::signature_failed)
     }
 }
 

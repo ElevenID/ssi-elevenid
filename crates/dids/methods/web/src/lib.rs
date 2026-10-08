@@ -172,14 +172,12 @@ impl DIDMethodResolver for DIDWeb {
 mod tests {
     use iref::Uri;
     use ssi_claims::{
-        data_integrity::{AnySuite, CryptographicSuite, ProofOptions},
-        vc::{syntax::NonEmptyVec, v1::JsonCredential},
+        data_integrity::{AnySuite, DataIntegrity},
+        vc::v1::JsonCredential,
         VerificationParameters,
     };
     use ssi_dids_core::{did, DIDResolver, Document, VerificationMethodDIDResolver, DID};
-    use ssi_jwk::JWK;
-    use ssi_verification_methods_core::{ProofPurpose, SingleSecretSigner};
-    use static_iref::{iri, uri};
+    use static_iref::uri;
 
     use super::*;
 
@@ -297,7 +295,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn credential_prove_verify_did_web() {
+    async fn credential_verify_did_web() {
         let didweb = VerificationMethodDIDResolver::new(DIDWeb);
         let params = VerificationParameters::from_resolver(&didweb);
 
@@ -306,36 +304,9 @@ mod tests {
             proxy.replace(Some(url));
         });
 
-        let cred = JsonCredential::new(
-            None,
-            did!("did:web:localhost").to_owned().into_uri().into(),
-            "2021-01-26T16:57:27Z".parse().unwrap(),
-            NonEmptyVec::new(json_syntax::json!({
-                "id": "did:web:localhost"
-            })),
-        );
-
-        let key: JWK = include_str!("../../../../../tests/ed25519-2020-10-18.json")
-            .parse()
-            .unwrap();
-        let verification_method = iri!("did:web:localhost#key1").to_owned().into();
-        let suite = AnySuite::pick(&key, Some(&verification_method)).unwrap();
-        let issue_options = ProofOptions::new(
-            "2021-01-26T16:57:27Z".parse().unwrap(),
-            verification_method,
-            ProofPurpose::Assertion,
-            Default::default(),
-        );
-        let signer = SingleSecretSigner::new(key).into_local();
-        let vc = suite
-            .sign(cred, &didweb, &signer, issue_options)
-            .await
-            .unwrap();
-
-        println!(
-            "proof: {}",
-            serde_json::to_string_pretty(&vc.proofs).unwrap()
-        );
+        let vc: DataIntegrity<JsonCredential, AnySuite> =
+            serde_json::from_str(include_str!("../tests/fixtures/signed-vc.json")).unwrap();
+        assert_eq!(vc.issuer, uri!("did:web:localhost").to_owned().into());
         assert_eq!(vc.proofs.first().unwrap().signature.as_ref(), "eyJhbGciOiJFZERTQSIsImNyaXQiOlsiYjY0Il0sImI2NCI6ZmFsc2V9..BCvVb4jz-yVaTeoP24Wz0cOtiHKXCdPcmFQD_pxgsMU6aCAj1AIu3cqHyoViU93nPmzqMLswOAqZUlMyVnmzDw");
         assert!(vc.verify(&params).await.unwrap().is_ok());
 

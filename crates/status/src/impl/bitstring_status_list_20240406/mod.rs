@@ -614,8 +614,8 @@ mod tests {
 
         assert!(decoded.len() >= len);
 
-        for i in 0..len {
-            assert_eq!(decoded.get(i), Some(values[i]))
+        for (i, value) in values.iter().enumerate().take(len) {
+            assert_eq!(decoded.get(i), Some(*value))
         }
     }
 

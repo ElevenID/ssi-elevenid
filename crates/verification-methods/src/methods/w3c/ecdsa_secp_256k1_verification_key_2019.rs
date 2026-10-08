@@ -4,7 +4,7 @@ use hex::FromHexError;
 use iref::{Iri, IriBuf, UriBuf};
 use rdf_types::{Interpretation, Vocabulary};
 use serde::{Deserialize, Serialize};
-use ssi_claims_core::{InvalidProof, MessageSignatureError, ProofValidationError, ProofValidity};
+use ssi_claims_core::{InvalidProof, ProofValidationError, ProofValidity};
 use ssi_jwk::JWK;
 use ssi_verification_methods_core::{JwkVerificationMethod, VerificationMethodSet, VerifyBytes};
 use static_iref::iri;
@@ -72,25 +72,6 @@ impl EcdsaSecp256k1VerificationKey2019 {
 
     pub fn public_key_jwk(&'_ self) -> Cow<'_, JWK> {
         self.public_key.to_jwk()
-    }
-
-    pub fn sign_bytes(
-        &self,
-        secret_key: &JWK,
-        digest_function: DigestFunction,
-        signing_bytes: &[u8],
-    ) -> Result<Vec<u8>, MessageSignatureError> {
-        let algorithm = digest_function.into_crypto_algorithm();
-        let key_algorithm = secret_key.algorithm.unwrap_or(algorithm);
-        if !algorithm.is_compatible_with(key_algorithm) {
-            return Err(MessageSignatureError::InvalidSecretKey);
-        }
-
-        // let header = ssi_jws::Header::new_unencoded(algorithm, None);
-        // let signing_bytes = header.encode_signing_bytes(data);
-        ssi_jws::sign_bytes(algorithm, signing_bytes, secret_key)
-            .map_err(|_| MessageSignatureError::InvalidSecretKey)
-        // Ok(JwsBuf::from_signing_bytes_and_signature(signing_bytes, signature).unwrap())
     }
 
     pub fn verify_bytes(

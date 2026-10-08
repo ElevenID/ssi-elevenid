@@ -72,14 +72,6 @@ impl StandardCryptographicSuite for SolanaSignature2021 {
 
 try_from_type!(SolanaSignature2021);
 
-// pub fn wallet_sign(message: &[u8], key: &JWK) -> Result<Vec<u8>, MessageSignatureError> {
-//     let tx = LocalSolanaTransaction::with_message(message);
-//     let bytes = tx.to_bytes();
-//     let signature = ssi_jws::sign_bytes(ssi_jwk::Algorithm::EdDSA, &bytes, key)
-//         .map_err(MessageSignatureError::signature_failed)?;
-//     Ok(Base58Btc::encode_signature(&signature))
-// }
-
 pub struct SolanaSignatureAlgorithm;
 
 impl SignatureAndVerificationAlgorithm for SolanaSignatureAlgorithm {

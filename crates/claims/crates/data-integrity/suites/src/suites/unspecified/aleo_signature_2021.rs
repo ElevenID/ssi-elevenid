@@ -106,11 +106,9 @@ where
         _prepared_claims: [u8; 64],
         _proof_configuration: ProofConfigurationRef<'_, AleoSignature2021>,
     ) -> Result<Self::Signature, SignatureError> {
-        // ssi_jws::sign_bytes(algorithm, data, key)
-        // let signature = ssi_jwk::aleo::sign(hash, key).map_err(MessageSignatureError::signature_failed)?;
-        // signer.sign(method., protocol, message)
-        // Ok(Base58BtcMultibase::encode_signature(&signature))
-        unimplemented!("AleoSignature2021 signing is not supported")
+        Err(SignatureError::UnsupportedAlgorithm(
+            "AleoSignature2021".to_owned(),
+        ))
     }
 }
 
@@ -148,12 +146,6 @@ impl VerificationAlgorithm<AleoSignature2021> for AleoSignatureAlgorithm {
         }
     }
 }
-
-// pub fn wallet_sign(message: &[u8], key: &JWK) -> Result<Vec<u8>, MessageSignatureError> {
-//     let signature =
-//         ssi_jwk::aleo::sign(message, key).map_err(MessageSignatureError::signature_failed)?;
-//     Ok(Base58BtcMultibase::encode_signature(&signature))
-// }
 
 impl VerificationMethod {
     pub fn blockchain_account_id(&self) -> &ssi_caips::caip10::BlockchainAccountId {

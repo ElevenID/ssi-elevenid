@@ -1,7 +1,6 @@
 use std::sync::LazyLock;
 
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use ssi_claims_core::{ValidateClaims, VerificationParameters};
 use ssi_core::json_pointer;
 use ssi_jwk::JWK;
@@ -9,18 +8,7 @@ use ssi_jwt::{ClaimSet, JWTClaims};
 use ssi_sd_jwt::*;
 
 static JWK: LazyLock<JWK> = LazyLock::new(|| {
-    json!({
-        "kty": "EC",
-        "d": "oYVImrMZjUclmWuhqa6bjzqGx5HFkbx76_00oWUHiLw",
-        "use": "sig",
-        "crv": "P-256",
-        "kid": "rpaXW8yADRnS2150CdsMtftwxtzSiVTV9bgHHG86v-E",
-        "x": "UX7TC8uQ9sn06c3DxXy1Ua5V9BK-cb9fQfukVrCLD8s",
-        "y": "yNXRKOnwBMTx536uajfNHklxpG9bAbdLlmVn6-XuK0Q",
-        "alg": "ES256"
-    })
-    .try_into()
-    .unwrap()
+    serde_json::from_str(include_str!("fixtures/full-pathway-public.jwk.json")).unwrap()
 });
 
 #[async_std::test]
@@ -42,13 +30,9 @@ async fn full_pathway_regular_claim() {
         })
         .unwrap();
 
-    let sd_jwt = base_claims
-        .conceal_and_sign(
-            SdAlg::Sha256,
-            &[json_pointer!("/property0"), json_pointer!("/property1")],
-            &*JWK,
-        )
-        .await
+    let sd_jwt: SdJwtBuf = include_str!("fixtures/full-pathway-regular.txt")
+        .trim()
+        .parse()
         .unwrap();
 
     let params = VerificationParameters::from_resolver(&*JWK);
@@ -101,16 +85,9 @@ async fn full_pathway_array() {
         })
         .unwrap();
 
-    let sd_jwt = base_claims
-        .conceal_and_sign(
-            SdAlg::Sha256,
-            &[
-                json_pointer!("/array_disclosure/0"),
-                json_pointer!("/array_disclosure/1"),
-            ],
-            &*JWK,
-        )
-        .await
+    let sd_jwt: SdJwtBuf = include_str!("fixtures/full-pathway-array.txt")
+        .trim()
+        .parse()
         .unwrap();
 
     let params = VerificationParameters::from_resolver(&*JWK);
@@ -177,29 +154,24 @@ async fn nested_claims() {
         })
         .unwrap();
 
-    // Conceal the base claims.
-    base_claims
-        .conceal_and_sign(
-            SdAlg::Sha256,
-            &[json_pointer!("/outer"), json_pointer!("/outer/inner")],
-            &*JWK,
-        )
+    // Both pointer orders were signed by the reference implementation.
+    let first_order_sd_jwt: SdJwtBuf = include_str!("fixtures/full-pathway-nested-first.txt")
+        .trim()
+        .parse()
+        .unwrap();
+    let base_sd_jwt: SdJwtBuf = include_str!("fixtures/full-pathway-nested-second.txt")
+        .trim()
+        .parse()
+        .unwrap();
+    let params = VerificationParameters::from_resolver(&*JWK);
+    let (first_order_revealed, first_order_verification) = first_order_sd_jwt
+        .decode_reveal_verify::<Claims, _>(&params)
         .await
         .unwrap();
-
-    // Conceal again but changing the order of pointers (this should have no effect).
-    let base_sd_jwt = base_claims
-        .conceal_and_sign(
-            SdAlg::Sha256,
-            &[json_pointer!("/outer/inner"), json_pointer!("/outer")],
-            &*JWK,
-        )
-        .await
-        .unwrap();
+    assert_eq!(first_order_verification, Ok(()));
+    assert_eq!(*first_order_revealed.claims(), base_claims);
 
     let inner_revealed = base_sd_jwt.decode_reveal::<Claims>().unwrap();
-
-    let params = VerificationParameters::from_resolver(&*JWK);
 
     let empty_sd_jwt = inner_revealed.clone().cleared().into_encoded();
 

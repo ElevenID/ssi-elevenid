@@ -566,7 +566,8 @@ mod tests {
             }
             total += 1;
             let mut path = entry.path();
-            let expected_str = fs::read_to_string(&path).unwrap();
+            // Git may check out the external vectors with CRLF on Windows.
+            let expected_str = fs::read_to_string(&path).unwrap().replace("\r\n", "\n");
             let in_file_name = num.to_string() + "-in.nq";
             path.set_file_name(PathBuf::from(in_file_name));
             let in_str = fs::read_to_string(&path).unwrap();
