@@ -72,9 +72,9 @@ impl Eip712Method2021 {
         let rec_id = k256::ecdsa::RecoveryId::try_from(signature_bytes[64])
             .map_err(|_| ProofValidationError::InvalidSignature)?;
 
-        let recovered_key: k256::ecdsa::VerifyingKey =
-            k256::ecdsa::VerifyingKey::recover_from_digest(
-                sha3::Keccak256::new_with_prefix(data),
+        let recovered_key =
+            ssi_crypto::ecdsa::VerifyingKey::<k256::Secp256k1>::recover_from_prehash(
+                &sha3::Keccak256::new_with_prefix(data).finalize(),
                 &signature,
                 rec_id,
             )
@@ -83,7 +83,8 @@ impl Eip712Method2021 {
         // Check the signing key.
         let jwk = JWK {
             params: ssi_jwk::Params::EC(ssi_jwk::ECParams::from(
-                &k256::PublicKey::from_sec1_bytes(&recovered_key.to_sec1_bytes()).unwrap(),
+                &k256::PublicKey::from_sec1_bytes(recovered_key.to_sec1_point(false).as_bytes())
+                    .unwrap(),
             )),
             public_key_use: None,
             key_operations: None,

@@ -1,6 +1,6 @@
 use super::{Options, TezosV2Context};
 use iref::Iri;
-use k256::sha2::Sha256;
+use sha2::Sha256;
 use ssi_data_integrity_core::{
     canonicalization::{CanonicalizeClaimsAndConfiguration, HashCanonicalClaimsAndConfiguration},
     signing::DetachedJwsRecoverySigning,

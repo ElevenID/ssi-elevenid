@@ -1,5 +1,5 @@
-use k256::sha2::{Digest, Sha256};
 use rdf_types::LexicalQuad;
+use sha2::{Digest, Sha256};
 use ssi_data_integrity_core::{
     suite::standard::{HashingAlgorithm, HashingError, TransformedData},
     ProofConfigurationRef,

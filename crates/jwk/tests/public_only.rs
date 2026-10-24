@@ -96,3 +96,40 @@ fn directly_constructed_private_jwk_fields_cannot_be_serialized() {
         .is_public()
     );
 }
+
+#[test]
+fn public_curve_serializers_validate_curve_point_and_coordinate_widths() {
+    type Serialize = fn(&ssi_jwk::ECParams) -> Result<Vec<u8>, ssi_jwk::Error>;
+    let mut cases: Vec<(&str, Serialize)> = vec![("P-256", ssi_jwk::serialize_p256)];
+    #[cfg(feature = "secp384r1")]
+    cases.push(("P-384", ssi_jwk::serialize_p384));
+    #[cfg(feature = "secp256k1")]
+    cases.push(("secp256k1", ssi_jwk::serialize_secp256k1));
+    for (curve, serialize) in cases {
+        let json = match curve {
+            "P-256" => include_str!("../../../tests/public_keys/p256.json"),
+            "P-384" => include_str!("../../../tests/public_keys/p384.json"),
+            _ => include_str!("../../../tests/public_keys/secp256k1.json"),
+        };
+        let jwk: JWK = serde_json::from_str(json).unwrap();
+        let ssi_jwk::Params::EC(public) = jwk.params else {
+            panic!("EC fixture")
+        };
+        assert!(serialize(&public).is_ok(), "{curve}");
+        let mut wrong_curve = public.clone();
+        wrong_curve.curve = Some("wrong-curve".to_owned());
+        assert!(serialize(&wrong_curve).is_err());
+        let mut shifted = public.clone();
+        let last_x = shifted.x_coordinate.as_mut().unwrap().0.pop().unwrap();
+        shifted.y_coordinate.as_mut().unwrap().0.insert(0, last_x);
+        // The concatenated SEC1 bytes are unchanged. Independent JWK widths must still reject it.
+        assert!(serialize(&shifted).is_err());
+        let mut short = public.clone();
+        short.x_coordinate.as_mut().unwrap().0.clear();
+        assert!(serialize(&short).is_err());
+        let mut off_curve = public.clone();
+        off_curve.x_coordinate.as_mut().unwrap().0.fill(0);
+        off_curve.y_coordinate.as_mut().unwrap().0.fill(0);
+        assert!(serialize(&off_curve).is_err());
+    }
+}

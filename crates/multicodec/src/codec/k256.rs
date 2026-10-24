@@ -1,3 +1,4 @@
+use k256::elliptic_curve::sec1::ToSec1Point;
 use std::borrow::Cow;
 
 use crate::{Codec, Error, SECP256K1_PUB};
@@ -10,6 +11,6 @@ impl Codec for k256::PublicKey {
     }
 
     fn to_bytes(&'_ self) -> Cow<'_, [u8]> {
-        Cow::Owned(self.to_sec1_bytes().into_vec())
+        Cow::Owned(self.to_sec1_point(true).as_bytes().to_vec())
     }
 }

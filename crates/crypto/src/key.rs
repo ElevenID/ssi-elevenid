@@ -20,6 +20,14 @@ pub enum PublicKey {
     P384(p384::PublicKey),
 }
 
+#[cfg(any(feature = "secp256k1", feature = "secp256r1", feature = "secp384r1"))]
+fn public_point_bytes(x: &[u8], y: &[u8], width: usize) -> Result<Vec<u8>, InvalidPublicKey> {
+    if x.len() != width || y.len() != width {
+        return Err(InvalidPublicKey);
+    }
+    Ok([&[0x04][..], x, y].concat())
+}
+
 impl PublicKey {
     #[cfg(feature = "ed25519")]
     pub fn new_ed25519(bytes: &[u8]) -> Result<Self, InvalidPublicKey> {
@@ -31,10 +39,7 @@ impl PublicKey {
 
     #[cfg(feature = "secp256k1")]
     pub fn new_secp256k1(x: &[u8], y: &[u8]) -> Result<Self, InvalidPublicKey> {
-        let mut bytes = Vec::new();
-        bytes.push(0x04);
-        bytes.extend(x);
-        bytes.extend(y);
+        let bytes = public_point_bytes(x, y, 32)?;
 
         k256::PublicKey::from_sec1_bytes(&bytes)
             .map(Self::Secp256k1)
@@ -43,10 +48,7 @@ impl PublicKey {
 
     #[cfg(feature = "secp256r1")]
     pub fn new_p256(x: &[u8], y: &[u8]) -> Result<Self, InvalidPublicKey> {
-        let mut bytes = Vec::new();
-        bytes.push(0x04);
-        bytes.extend(x);
-        bytes.extend(y);
+        let bytes = public_point_bytes(x, y, 32)?;
 
         p256::PublicKey::from_sec1_bytes(&bytes)
             .map(Self::P256)
@@ -55,10 +57,7 @@ impl PublicKey {
 
     #[cfg(feature = "secp384r1")]
     pub fn new_p384(x: &[u8], y: &[u8]) -> Result<Self, InvalidPublicKey> {
-        let mut bytes = Vec::new();
-        bytes.push(0x04);
-        bytes.extend(x);
-        bytes.extend(y);
+        let bytes = public_point_bytes(x, y, 48)?;
 
         p384::PublicKey::from_sec1_bytes(&bytes)
             .map(Self::P384)

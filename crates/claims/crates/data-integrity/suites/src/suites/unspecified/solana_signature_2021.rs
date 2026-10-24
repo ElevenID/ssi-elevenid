@@ -1,5 +1,5 @@
-use k256::sha2::Sha256;
 use serde::{Deserialize, Serialize};
+use sha2::Sha256;
 use ssi_claims_core::{ProofValidationError, ProofValidity, SignatureError};
 use ssi_data_integrity_core::{
     canonicalization::{CanonicalizeClaimsAndConfiguration, HashCanonicalClaimsAndConfiguration},

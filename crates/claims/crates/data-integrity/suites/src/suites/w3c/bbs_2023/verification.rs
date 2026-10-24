@@ -1,5 +1,5 @@
-use k256::sha2::{Digest, Sha256};
 use rdf_types::LexicalQuad;
+use sha2::{Digest, Sha256};
 use ssi_bbs::proof_verify;
 use ssi_claims_core::{ProofValidationError, ProofValidity};
 use ssi_data_integrity_core::{suite::standard::VerificationAlgorithm, ProofRef};

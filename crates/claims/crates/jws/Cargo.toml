@@ -50,9 +50,9 @@ thiserror = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 base64.workspace = true
-k256 = { workspace = true, optional = true, features = ["ecdsa"] }
-p256 = { workspace = true, optional = true, features = ["ecdsa"] }
-p384 = { workspace = true, optional = true, features = ["ecdsa"] }
+k256 = { workspace = true, optional = true, features = ["arithmetic", "ecdsa-core", "sha256"] }
+p256 = { workspace = true, optional = true, features = ["arithmetic", "ecdsa-core", "sha256"] }
+p384 = { workspace = true, optional = true, features = ["arithmetic", "ecdsa-core", "sha384"] }
 blake2 = { workspace = true, optional = true }
 ed25519-dalek = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }

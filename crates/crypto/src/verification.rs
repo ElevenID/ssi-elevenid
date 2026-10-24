@@ -37,7 +37,7 @@ impl AlgorithmInstance {
             Self::ES256K => match key {
                 PublicKey::Secp256k1(key) => {
                     use k256::ecdsa::signature::Verifier;
-                    let verifying_key = k256::ecdsa::VerifyingKey::from(key);
+                    let verifying_key = ecdsa_core::VerifyingKey::<k256::Secp256k1>::from(key);
                     let sig = k256::ecdsa::Signature::try_from(signature_bytes)
                         .map_err(|_| VerificationError::InvalidSignature)?;
                     Ok(verifying_key.verify(signing_bytes, &sig).is_ok())
@@ -49,7 +49,7 @@ impl AlgorithmInstance {
             Self::ES256 => match key {
                 PublicKey::P256(key) => {
                     use p256::ecdsa::signature::Verifier;
-                    let verifying_key = p256::ecdsa::VerifyingKey::from(key);
+                    let verifying_key = ecdsa_core::VerifyingKey::<p256::NistP256>::from(key);
                     let sig = p256::ecdsa::Signature::try_from(signature_bytes)
                         .map_err(|_| VerificationError::InvalidSignature)?;
                     Ok(verifying_key.verify(signing_bytes, &sig).is_ok())
@@ -61,7 +61,7 @@ impl AlgorithmInstance {
             Self::ES384 => match key {
                 PublicKey::P384(key) => {
                     use p384::ecdsa::signature::Verifier;
-                    let verifying_key = p384::ecdsa::VerifyingKey::from(key);
+                    let verifying_key = ecdsa_core::VerifyingKey::<p384::NistP384>::from(key);
                     let sig = p384::ecdsa::Signature::try_from(signature_bytes)
                         .map_err(|_| VerificationError::InvalidSignature)?;
                     Ok(verifying_key.verify(signing_bytes, &sig).is_ok())

@@ -11,23 +11,24 @@ documentation = "https://docs.rs/ssi-crypto/"
 [features]
 default = ["secp256k1", "secp256r1", "ripemd-160"]
 ed25519 = ["ed25519-dalek"]
-secp256k1 = ["k256", "getrandom", "keccak"]
-secp256r1 = ["p256"]
-secp384r1 = ["p384"]
+secp256k1 = ["k256", "dep:ecdsa-core", "getrandom", "keccak"]
+secp256r1 = ["p256", "dep:ecdsa-core"]
+secp384r1 = ["p384", "dep:ecdsa-core"]
 ripemd-160 = ["ripemd160", "secp256k1"]
 keccak = ["keccak-hash"]
 ring = ["dep:ring"]
 
 [dependencies]
+ecdsa-core = { workspace = true, optional = true, features = ["verifying", "der"] }
 thiserror.workspace = true
 sha2 = { workspace = true }
 ring = { version = "0.17.14", optional = true }
-k256 = { workspace = true, optional = true, features = ["ecdsa"] }
-p256 = { workspace = true, optional = true, features = ["ecdsa"] }
-p384 = { workspace = true, optional = true, features = ["ecdsa"] }
+k256 = { workspace = true, optional = true, features = ["arithmetic", "ecdsa-core", "sha256"] }
+p256 = { workspace = true, optional = true, features = ["arithmetic", "ecdsa-core", "sha256"] }
+p384 = { workspace = true, optional = true, features = ["arithmetic", "ecdsa-core", "sha384"] }
 getrandom = { workspace = true, optional = true } # Required for wasm targets.
 keccak-hash = { version = "0.7", optional = true }
-ed25519-dalek = { workspace = true, optional = true, features = ["rand_core"] }
+ed25519-dalek = { workspace = true, optional = true }
 ripemd160 = { version = "0.9", optional = true }
 serde = { workspace = true, features = ["derive"] }
 bs58 = { workspace = true, features = ["check"] }

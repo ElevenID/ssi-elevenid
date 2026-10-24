@@ -62,9 +62,9 @@ serde_jcs.workspace = true
 base64.workspace = true
 thiserror = "1.0"
 ssi-crypto.workspace = true
-k256 = { workspace = true, optional = true, features = ["ecdsa"] }
-p256 = { workspace = true, optional = true, features = ["ecdsa"] }
-p384 = { workspace = true, optional = true, features = ["ecdsa"] }
+k256 = { workspace = true, optional = true, features = ["arithmetic", "ecdsa-core", "sha256"] }
+p256 = { workspace = true, optional = true, features = ["arithmetic", "ecdsa-core", "sha256"] }
+p384 = { workspace = true, optional = true, features = ["arithmetic", "ecdsa-core", "sha384"] }
 ring = { version = "0.17.14", optional = true }
 rsa = { workspace = true, optional = true }
 ed25519-dalek = { workspace = true, optional = true }
