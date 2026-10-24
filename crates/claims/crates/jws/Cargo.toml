@@ -22,10 +22,10 @@ secp256k1 = [
 ]
 
 ## Enable secp256r1 (p256) signatures.
-secp256r1 = ["ssi-jwk/secp256r1", "p256", "blake2"]
+secp256r1 = ["ssi-jwk/secp256r1", "ssi-crypto/secp256r1", "p256", "blake2"]
 
 ## Enable secp384r1 (p384) signatures.
-secp384r1 = ["ssi-jwk/secp384r1", "p384"]
+secp384r1 = ["ssi-jwk/secp384r1", "ssi-crypto/secp384r1", "p384"]
 
 ## Enable ed25519 (EdDSA) signatures.
 ed25519 = ["ssi-jwk/ed25519", "ed25519-dalek", "rand", "blake2"]

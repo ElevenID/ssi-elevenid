@@ -202,7 +202,7 @@ impl CoseKeyEncode for CoseKey {
             }),
             #[cfg(feature = "secp256k1")]
             PublicKey::Secp256k1(key) => {
-                use ssi_crypto::k256::elliptic_curve::sec1::ToSec1Point;
+                use ssi_crypto::k256::ToSec1Point;
                 let encoded_point = key.to_sec1_point(false);
                 Ok(Self {
                     kty: KeyType::Assigned(iana::KeyType::EC2),
@@ -216,7 +216,7 @@ impl CoseKeyEncode for CoseKey {
             }
             #[cfg(feature = "secp256r1")]
             PublicKey::P256(key) => {
-                use ssi_crypto::p256::elliptic_curve::sec1::ToSec1Point;
+                use ssi_crypto::p256::ToSec1Point;
                 let encoded_point = key.to_sec1_point(false);
                 Ok(Self {
                     kty: KeyType::Assigned(iana::KeyType::EC2),
@@ -230,7 +230,7 @@ impl CoseKeyEncode for CoseKey {
             }
             #[cfg(feature = "secp384r1")]
             PublicKey::P384(key) => {
-                use ssi_crypto::p384::elliptic_curve::sec1::ToSec1Point;
+                use ssi_crypto::p384::ToSec1Point;
                 let encoded_point = key.to_sec1_point(false);
                 Ok(Self {
                     kty: KeyType::Assigned(iana::KeyType::EC2),
