@@ -9,6 +9,8 @@ repository = "https://github.com/spruceid/ssi/"
 documentation = "https://docs.rs/ssi-data-integrity/"
 
 [features]
+# Retain the previous selector; canonical RDF hashing always needs SHA-2.
+sha2 = []
 ## Signature suites specified by the W3C.
 ##
 ## This includes:
@@ -151,10 +153,10 @@ bs58 = { workspace = true, optional = true }
 base64.workspace = true
 
 # ed25519-dalek = { workspace = true, optional = true }
-k256 = { workspace = true, optional = true, features = ["ecdsa", "sha256"] }
-p256 = { workspace = true, optional = true, features = ["ecdsa"] }
-p384 = { workspace = true, optional = true, features = ["ecdsa"] }
-sha2 = { workspace = true, optional = true }
+k256 = { workspace = true, optional = true, features = ["arithmetic", "ecdsa-core", "sha256"] }
+p256 = { workspace = true, optional = true, features = ["arithmetic", "ecdsa-core", "sha256"] }
+p384 = { workspace = true, optional = true, features = ["arithmetic", "ecdsa-core", "sha384"] }
+sha2.workspace = true
 
 # only needed by non LD suites, EIP-712 and BBS.
 json-syntax = { workspace = true, features = ["canonicalize"] }

@@ -39,7 +39,7 @@ where
             "proof-scoped signature count mismatch",
         ));
     }
-    let verifying_key = p256::ecdsa::VerifyingKey::from(&public_key);
+    let verifying_key = ssi_crypto::ecdsa::VerifyingKey::<p256::NistP256>::from(&public_key);
     let signatures: Vec<[u8; 64]> = proof_scoped
         .signatures
         .iter()

@@ -52,7 +52,8 @@ impl VerificationAlgorithm<EcdsaSd2023> for SignatureAlgorithm {
                     .public_key
                     .decode()
                     .map_err(|_| ProofValidationError::InvalidSignature)?;
-                let verifying_key: p256::ecdsa::VerifyingKey = public_key.into();
+                let verifying_key: ssi_crypto::ecdsa::VerifyingKey<p256::NistP256> =
+                    public_key.into();
 
                 for (i, quad_signature) in data.signatures.into_iter().enumerate() {
                     let quad = data

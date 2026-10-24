@@ -37,3 +37,31 @@ fn rs256_verification_survives_without_local_signing() {
     assert!(public.is_public());
     assert!(decode_verify(signed, &public).is_ok());
 }
+
+#[test]
+#[cfg(feature = "secp256k1")]
+fn es256k_public_high_s_signature_keeps_compatibility_and_warning() {
+    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+    let public: JWK = serde_json::from_str(r#"{"kty":"EC","crv":"secp256k1","x":"75ly36FbnJzTT6bZT4KR_aVx3AlzR7WF6YWBSoi-3lQ","y":"RswUWdEwFdU7zoC-Ov2YPYG7CrNKXjSMl6C2iwub97Y"}"#).unwrap();
+    // Fixed public vector also used by Marty's ES256K verifier; no secret material.
+    let signature = URL_SAFE_NO_PAD.decode("ldm8BHtz5gQ8LQsc87_KDMeLXk9rrR43mLneWXfEcZv58QcEDLRfNmHXnf3_cCHYFMTeYg5xGQDznvhmosUSQQ").unwrap();
+    let warnings = ssi_jws::verify_bytes_warnable(
+        ssi_jwk::Algorithm::ES256K,
+        b"canonical prepared credential payload",
+        &public,
+        &signature,
+    )
+    .unwrap();
+    assert_eq!(warnings.len(), 1);
+    assert!(warnings[0].contains("Non-normalized ES256K"));
+    assert!(
+        ssi_jws::verify_bytes(ssi_jwk::Algorithm::ES256K, b"changed", &public, &signature).is_err()
+    );
+    assert!(ssi_jws::verify_bytes(
+        ssi_jwk::Algorithm::ES256K,
+        b"payload",
+        &public,
+        &signature[..63]
+    )
+    .is_err());
+}

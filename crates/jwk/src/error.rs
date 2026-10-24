@@ -105,6 +105,13 @@ pub enum Error {
     ))]
     #[error(transparent)]
     CryptoErr(#[from] ed25519_dalek::ed25519::Error),
+    /// Ed25519 uses signature 2 while the public ECDSA backend uses signature 3.
+    #[cfg(all(
+        feature = "ed25519",
+        any(feature = "secp384r1", feature = "secp256r1", feature = "secp256k1")
+    ))]
+    #[error(transparent)]
+    Ed25519(#[from] ed25519_dalek::ed25519::Error),
     /// Error from `elliptic-curve` crate
     #[cfg(feature = "secp256k1")]
     #[error(transparent)]

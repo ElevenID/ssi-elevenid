@@ -1,5 +1,5 @@
-use k256::sha2::Sha256;
 use lazy_static::lazy_static;
+use sha2::Sha256;
 use ssi_data_integrity_core::{
     canonicalization::{CanonicalizeClaimsAndConfiguration, HashCanonicalClaimsAndConfiguration},
     signing::DetachedJwsSigning,

@@ -4,8 +4,8 @@
 //! and Curve25519. It is recommended to use `edssa-2022` instead.
 //!
 //! See: <https://w3c.github.io/vc-di-eddsa/#the-ed25519signature2020-suite>
-use k256::sha2::Sha256;
 use lazy_static::lazy_static;
+use sha2::Sha256;
 use ssi_data_integrity_core::{
     canonicalization::{CanonicalizeClaimsAndConfiguration, HashCanonicalClaimsAndConfiguration},
     signing::{Base58Btc, MultibaseSigning},

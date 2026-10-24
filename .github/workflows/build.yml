@@ -54,6 +54,11 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace
 
+      - name: Verification-only boundary
+        run: |
+          cargo test -p ssi-crypto --doc --all-features
+          cargo test -p ssi-jwk -p ssi-jws --test public_only --features ssi-jwk/secp384r1,ssi-jws/secp384r1
+
       - name: Test WASM compilation
         run: |
           rustup target add wasm32-unknown-unknown

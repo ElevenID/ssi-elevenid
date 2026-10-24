@@ -67,23 +67,19 @@ impl HashingAlgorithm<EcdsaRdfc2019> for EcdsaRdfc2019HashingAlgorithm {
             .map_err(|_| HashingError::InvalidKey)?
         {
             #[cfg(feature = "secp256r1")]
-            DecodedMultikey::P256(_) => {
-                HashCanonicalClaimsAndConfiguration::<k256::sha2::Sha256>::hash(
-                    input,
-                    proof_configuration,
-                    verification_method,
-                )
-                .map(EcdsaRdfc2019Hash::Sha256)
-            }
+            DecodedMultikey::P256(_) => HashCanonicalClaimsAndConfiguration::<sha2::Sha256>::hash(
+                input,
+                proof_configuration,
+                verification_method,
+            )
+            .map(EcdsaRdfc2019Hash::Sha256),
             #[cfg(feature = "secp384r1")]
-            DecodedMultikey::P384(_) => {
-                HashCanonicalClaimsAndConfiguration::<k256::sha2::Sha384>::hash(
-                    input,
-                    proof_configuration,
-                    verification_method,
-                )
-                .map(EcdsaRdfc2019Hash::Sha384)
-            }
+            DecodedMultikey::P384(_) => HashCanonicalClaimsAndConfiguration::<sha2::Sha384>::hash(
+                input,
+                proof_configuration,
+                verification_method,
+            )
+            .map(EcdsaRdfc2019Hash::Sha384),
             _ => Err(HashingError::InvalidKey),
         }
     }

@@ -1,4 +1,5 @@
 use iref::{Iri, IriBuf, UriBuf};
+use p256::elliptic_curve::sec1::ToSec1Point;
 use rdf_types::{Interpretation, Vocabulary};
 use serde::{Deserialize, Serialize};
 use ssi_claims_core::{InvalidProof, ProofValidationError, ProofValidity};
@@ -197,8 +198,10 @@ pub struct PublicKey {
 
 impl PublicKey {
     pub fn encode(decoded: p256::PublicKey) -> Self {
-        let multi_encoded =
-            MultiEncodedBuf::encode_bytes(ssi_multicodec::P256_PUB, &decoded.to_sec1_bytes());
+        let multi_encoded = MultiEncodedBuf::encode_bytes(
+            ssi_multicodec::P256_PUB,
+            decoded.to_sec1_point(false).as_bytes(),
+        );
 
         Self {
             encoded: MultibaseBuf::encode(multibase::Base::Base58Btc, multi_encoded.as_bytes()),
@@ -232,7 +235,7 @@ impl PublicKey {
 
     pub fn verify(&self, data: &[u8], signature: &p256::ecdsa::Signature) -> ProofValidity {
         use p256::ecdsa::signature::Verifier;
-        let verifying_key = p256::ecdsa::VerifyingKey::from(self.decoded);
+        let verifying_key = ssi_crypto::ecdsa::VerifyingKey::<p256::NistP256>::from(self.decoded);
         verifying_key
             .verify(data, signature)
             .map_err(|_| InvalidProof::Signature)
